@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import sqlite3
@@ -11,8 +11,20 @@ from reportlab.platypus import Table, TableStyle
 import json, io, os, socket
 from datetime import datetime
 
-app = Flask(__name__)
+# Initialize Flask with frontend folder as static source
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 CORS(app)
+
+# ─── static routes ────────────────────────────────────────────────────────────
+
+@app.route('/')
+def home():
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory(app.static_folder, path)
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 

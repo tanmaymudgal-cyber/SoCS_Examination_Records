@@ -1,0 +1,8 @@
+Flask==3.0.0
+flask-cors==4.0.0
+pandas==2.1.4
+openpyxl==3.1.2
+qrcode==7.4.2
+Pillow==10.1.0
+reportlab==4.0.7
+xlrd==2.0.1
