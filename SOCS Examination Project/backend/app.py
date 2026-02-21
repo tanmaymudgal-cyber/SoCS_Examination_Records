@@ -646,7 +646,9 @@ def get_logs():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    # Use the PORT environment variable for production, fallback to 5000 for local dev
+    port = int(os.environ.get("PORT", BACKEND_PORT))
     print(f"  LAN IP : {get_local_ip()}")
     print(f"  Admin  : {frontend_url('/admin.html?exam_id=1')}")
     print(f"  Results: {frontend_url('/results.html?exam_id=1')}")
-    app.run(debug=True, host='0.0.0.0', port=BACKEND_PORT)
+    app.run(debug=True, host='0.0.0.0', port=port)
