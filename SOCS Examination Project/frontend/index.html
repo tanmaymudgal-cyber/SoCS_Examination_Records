@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoCS Exam Hub — UPES Dehradun</title>
+
+    <!-- Flatpickr for advanced date selection -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/material_blue.css">
+
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <nav class="main-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="logo-icon">🎓</span>
+                <div>
+                    <h3>SoCS Exam Hub</h3>
+                    <p>UPES Dehradun</p>
+                </div>
+            </div>
+
+            <div class="nav-links">
+                <button class="nav-btn active" data-view="exams-view">📋 Exams</button>
+                <button class="nav-btn" data-view="upload-view">📤 Upload</button>
+                <button class="nav-btn" data-view="insights-view">📊 Insights</button>
+                <button class="nav-btn" data-view="logs-view">🛡️ Activity</button>
+            </div>
+
+            <div class="nav-status">
+                <div id="liveIndicator" class="status-dot offline"></div>
+                <span id="statusText">Connecting…</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container site-content">
+
+        <!-- VIEW: EXAMS -->
+        <section id="exams-view" class="view-section active">
+            <header class="view-header">
+                <div>
+                    <h1>Examination Sessions</h1>
+                    <p>Integrated management console for official SoCS exam scheduling</p>
+                </div>
+                <div class="header-actions">
+                    <button id="openBulkModalBtn" class="btn btn-pdf">📄 Bulk Download Labels</button>
+                    <button id="downloadTemplateBtn" class="btn btn-outline">⬇ Template</button>
+                </div>
+            </header>
+
+            <!-- EXAM VIEW TOGGLE -->
+            <div class="exam-view-tabs">
+                <button class="exam-tab active" data-tab="upcoming">🗓 Upcoming & Live</button>
+                <button class="exam-tab" data-tab="past">✅ Completed & Past</button>
+            </div>
+
+            <!-- UPCOMING EXAMS (TABLE) -->
+            <div id="upcoming-view-container" class="card table-card active-view">
+                <div class="card-header">
+                    <h2>📋 Live Exam Schedule</h2>
+                    <div class="table-actions">
+                        <input type="text" id="searchInput" class="search-box" placeholder="🔍 Search Live Schedule…">
+                        <button id="refreshBtn" class="btn btn-sm">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div class="card-body table-wrap">
+                    <table id="examsTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="id">ID <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="exam_title">Exam Title <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable" data-sort="room_number">Room <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="exam_date">Date <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="exam_time">Time <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="program_batch">Batch <span class="sort-icon"></span>
+                                </th>
+                                <th class="sortable" data-sort="semester">Sem <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="course_name">Course <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="course_code">Code <span class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="evaluator_name">Evaluator <span
+                                        class="sort-icon"></span></th>
+                                <th class="sortable" data-sort="num_students">Students <span class="sort-icon"></span>
+                                </th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <tr>
+                                <td colspan="12" class="empty-row">Loading schedule…</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: UPLOAD -->
+        <section id="upload-view" class="view-section">
+            <header class="view-header">
+                <div>
+                    <h1>Upload Schedule</h1>
+                    <p>Import examination data from Excel sheets</p>
+                </div>
+            </header>
+            <div class="card upload-card content-centered">
+                <div class="card-body">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📊</div>
+                        <p class="upload-title">Drop your Excel file here</p>
+                        <p class="upload-sub">or click to browse (.xlsx / .xls)</p>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
+                    </div>
+                    <button id="uploadBtn" class="btn btn-primary btn-lg" disabled>📤 Process Upload</button>
+                    <div id="uploadStatus" class="status-msg" style="display:none"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: INSIGHTS -->
+        <section id="insights-view" class="view-section">
+            <header class="view-header">
+                <div>
+                    <h1>Insights & Analytics</h1>
+                    <p>Operational overview of the examination cycle</p>
+                </div>
+            </header>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-ico blue">🏫</div>
+                    <div class="stat-val" id="stat-total-exams">0</div>
+                    <div class="stat-lbl">Total Exams</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-ico green">👥</div>
+                    <div class="stat-val" id="stat-total-students">0</div>
+                    <div class="stat-lbl">Students Enrolled</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-ico orange">📄</div>
+                    <div class="stat-val" id="stat-total-sheets">0</div>
+                    <div class="stat-lbl">Sheets Collected</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-ico red">⚠️</div>
+                    <div class="stat-val" id="stat-total-ufm">0</div>
+                    <div class="stat-lbl">UFM Cases</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: LOGS -->
+        <section id="logs-view" class="view-section">
+            <header class="view-header">
+                <div>
+                    <h1>Activity Monitoring</h1>
+                    <p>System-wide logs and audit trail</p>
+                </div>
+            </header>
+            <div class="card logs-card">
+                <div class="card-body">
+                    <div id="logsContainer" class="logs-list">
+                        <div class="empty-row">Fetching activity logs…</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- BULK DOWNLOAD MODAL -->
+    <div id="bulkDownloadModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📄 Bulk Labels Download</h3>
+                <button class="modal-close" onclick="closeBulkModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="toggle-group">
+                    <button id="toggleOneDay" class="toggle-btn active" onclick="setBulkMode('one')">One Day</button>
+                    <button id="toggleRange" class="toggle-btn" onclick="setBulkMode('range')">Date Range</button>
+                </div>
+
+                <div id="oneDayGroup" class="input-row">
+                    <label>Select Date:</label>
+                    <input type="text" id="bulk-single-date" class="modal-input"
+                        placeholder="Select a date from the calendar">
+                </div>
+
+                <div id="rangeGroup" class="input-row" style="display:none">
+                    <div class="dual-input">
+                        <div>
+                            <label>From:</label>
+                            <input type="text" id="bulk-start-date" class="modal-input" placeholder="Start Date">
+                        </div>
+                        <div>
+                            <label>Till:</label>
+                            <input type="text" id="bulk-end-date" class="modal-input" placeholder="End Date">
+                        </div>
+                    </div>
+                </div>
+
+                <button id="bulkDownloadConfirmBtn" class="btn btn-primary btn-lg">Generate & Download PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,25 @@
+﻿============================================================
+SAMPLE DATA EXCEL
+============================================================
+Columns:
+  [0] Student Name
+  [1] Subject
+  [2] Exam Date
+  [3] Exam Time
+  [4] Room Number
+  [5] Seat Number
+
+Total data rows: 5
+
+First 3 rows:
+  ('Alice Johnson', 'Mathematics', '2024-03-15', '09:00 AM', 'Room 101', 'A-01')
+  ('Bob Smith', 'Physics', '2024-03-15', '09:00 AM', 'Room 101', 'A-02')
+  ('Carol Williams', 'Chemistry', '2024-03-16', '11:00 AM', 'Room 102', 'B-01')
+
+============================================================
+TEMPLATE DOCX CONTENT
+============================================================
+
+[TABLE]
+['SoCS Mid Sem Exam March 2025\n\t\t\t\t\t\t\t\t\tRoom No. : 2001\nDate of Exam\t\t:\t05/03/2025\nTime\t\t\t\t:\t02:00 PM - 04:00 PM\nProgram/ Batch\t\t:\tBT-CSE-II-B1\nSem\t\t\t\t:\t2\nCourse Name\t\t:\tComputer Organization and Architecture\nCourse Code\t\t:\tCSEG1032\nName of Evaluator\t:\tRajib Banerjee\nNo. of Students\t\t:\t29\nTotal Ans. Sheets\t:..ààààà      UFM:àà      Absent :àà \n\nSign Invigilator 1:àààà.\t\t\t\tSign Invigilator 2:ààààà']
+['SoCS Mid Sem Exam March 2025\n\t\t\t\t\t\t\t\t\tRoom No. : 2001\nDate of Exam\t\t:\t05/03/2025\nTime\t\t\t\t:\t02:00 PM - 04:00 PM\nProgram/ Batch\t\t:\tBT-CSE-II-B10\nSem\t\t\t\t:\t2\nCourse Name\t\t:\tComputer Organization and Architecture\nCourse Code\t\t:\tCSEG1032\nName of Evaluator\t:\tAvishek Majumder\nNo. of Students\t\t:\t4\nTotal Ans. Sheets\t:..ààààà      UFM:àà      Absent :àà \n\nSign Invigilator 1:àààà.\t\t\t\tSign Invigilator 2:àààà']
