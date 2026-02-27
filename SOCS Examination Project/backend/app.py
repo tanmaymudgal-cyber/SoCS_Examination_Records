@@ -75,8 +75,15 @@ def get_conn():
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         
+        # Support for URL-encoded connection strings
+        import urllib.parse
+        if "postgres%3A%2F%2F" in db_url or "postgresql%3A%2F%2F" in db_url:
+            print("DEBUG: Decoding URL-encoded DATABASE_URL")
+            db_url = urllib.parse.unquote(db_url)
+
         # Sanitized logging for debugging
-        print(f"Connecting to Database: {db_url.split('@')[-1]}") 
+        print(f"DATABASE TYPE: PostgreSQL")
+        print(f"Connecting to Host: {db_url.split('@')[-1].split('/')[0]}") 
         
         import psycopg2
         
@@ -94,6 +101,8 @@ def get_conn():
             raise
     
     # Otherwise fallback to SQLite
+    print("DATABASE TYPE: SQLite (Fallback)")
+    print(f"DB Path: {DB_PATH}")
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
