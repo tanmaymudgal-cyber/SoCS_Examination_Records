@@ -5,21 +5,19 @@ import openpyxl
 wb = openpyxl.Workbook()
 ws = wb.active
 
-headers = ["Student Name", "Subject", "Exam Date", "Exam Time", "Room Number", "Seat Number"]
+headers = ["Exam Title", "Room Number", "Exam Date", "Exam Time", "Program / Batch", "Semester", "Course Name", "Course Code", "Evaluator Name", "Num Students"]
 ws.append(headers)
 
 rows = [
-    ["Alice Johnson",  "Mathematics",  "2024-03-15", "09:00 AM", "Room 101", "A-01"],
-    ["Bob Smith",      "Physics",      "2024-03-15", "09:00 AM", "Room 101", "A-02"],
-    ["Carol Williams", "Chemistry",    "2024-03-16", "11:00 AM", "Room 102", "B-01"],
-    ["David Brown",    "Biology",      "2024-03-16", "02:00 PM", "Room 103", "C-01"],
-    ["Eva Davis",      "Mathematics",  "2024-03-17", "09:00 AM", "Room 101", "A-03"],
+    ["Mid-Term Spring 2024", "Room 301", "2024-05-20", "10:00 AM", "B.Tech CS / 2022", "4", "Database Systems", "CS201", "Dr. Sharma", 45],
+    ["End-Term Spring 2024", "Room 102", "2024-05-21", "02:00 PM", "BCA / 2023", "2", "Operating Systems", "CA105", "Prof. Verma", 30],
+    ["Supplementary Exam",   "Lab 4",    "2024-05-22", "09:00 AM", "Integrated Dual", "6", "Network Security", "IT302", "Dr. Gupta",  12],
 ]
 
 for row in rows:
     ws.append(row)
 
-out_path = os.path.join(os.path.dirname(__file__), '..', 'sample_data.xlsx')
+out_path = os.path.join(os.path.dirname(__file__), 'exam_template.xlsx')
 wb.save(out_path)
 print(f"Saved valid sample_data.xlsx to: {os.path.abspath(out_path)}")
 print(f"Size: {os.path.getsize(out_path)} bytes")

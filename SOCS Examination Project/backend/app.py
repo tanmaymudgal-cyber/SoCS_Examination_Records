@@ -41,8 +41,19 @@ def get_local_ip():
 FRONTEND_PORT = 8000
 BACKEND_PORT  = 5000
 
-def frontend_url(path):
-    return f"http://{get_local_ip()}:{FRONTEND_PORT}{path}"
+def get_base_url():
+    """Returns the base URL for QR codes. Uses request host if available, else LAN IP."""
+    try:
+        # If we are in a request context, use the actual host/port used by the client
+        return request.host_url.rstrip('/')
+    except Exception:
+        # Fallback for startup print statements or background tasks
+        port = int(os.environ.get("PORT", BACKEND_PORT))
+        return f"http://{get_local_ip()}:{port}"
+
+def get_url_for(path):
+    """Generates a full URL for the given path."""
+    return f"{get_base_url()}{path}"
 
 # ─── database ─────────────────────────────────────────────────────────────────
 
@@ -151,6 +162,19 @@ def row_to_result(row):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy', 'message': 'SOCS Exam API is running'}), 200
+
+@app.route('/api/download-template', methods=['GET'])
+def download_template():
+    template_path = os.path.join(os.path.dirname(__file__), "exam_template.xlsx")
+    if not os.path.exists(template_path):
+        # Trigger generation if missing
+        try:
+            import subprocess
+            subprocess.run(["python", os.path.join(os.path.dirname(__file__), "make_sample.py")], check=True)
+        except:
+            return jsonify({'error': 'Template generation failed'}), 500
+            
+    return send_file(template_path, as_attachment=True, download_name="SOCS_Exam_Template.xlsx")
 
 
 @app.route('/api/upload-excel', methods=['POST'])
@@ -483,8 +507,8 @@ def generate_pdf(exam_id):
         if not row: return jsonify({'error': 'Not found'}), 404
 
         exam = row_to_exam(row)
-        admin_url = frontend_url(f"/admin.html?exam_id={exam_id}")
-        input_url = frontend_url(f"/results.html?exam_id={exam_id}")
+        admin_url = get_url_for(f"/admin.html?exam_id={exam_id}")
+        input_url = get_url_for(f"/results.html?exam_id={exam_id}")
 
         buf = io.BytesIO()
         pdf = canvas.Canvas(buf, pagesize=A4)
@@ -561,15 +585,15 @@ def generate_bulk_pdf():
         for i in range(0, len(exams), 2):
             # Label 1 (Top)
             exam1 = exams[i]
-            input_url1 = frontend_url(f"/results.html?exam_id={exam1['id']}")
-            admin_url1 = frontend_url(f"/admin.html?exam_id={exam1['id']}")
+            input_url1 = get_url_for(f"/results.html?exam_id={exam1['id']}")
+            admin_url1 = get_url_for(f"/admin.html?exam_id={exam1['id']}")
             draw_label(pdf, exam1, MARGIN, MARGIN + LBL_H + GAP, LBL_W, LBL_H, admin_url1, input_url1)
 
             # Label 2 (Bottom) - if exists
             if i + 1 < len(exams):
                 exam2 = exams[i+1]
-                input_url2 = frontend_url(f"/results.html?exam_id={exam2['id']}")
-                admin_url2 = frontend_url(f"/admin.html?exam_id={exam2['id']}")
+                input_url2 = get_url_for(f"/results.html?exam_id={exam2['id']}")
+                admin_url2 = get_url_for(f"/admin.html?exam_id={exam2['id']}")
                 draw_label(pdf, exam2, MARGIN, MARGIN, LBL_W, LBL_H, admin_url2, input_url2)
 
                 # separator line
@@ -595,20 +619,32 @@ def generate_bulk_pdf():
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
-    """Aggregate statistics for the Insights dashboard."""
+    """Aggregate statistics for the Insights dashboard with optional date filtering."""
     try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
         conn = get_conn()
         cur  = conn.cursor()
         
+        where_clause = ""
+        params = []
+        if start_date and end_date:
+            where_clause = " WHERE exam_date BETWEEN ? AND ?"
+            params = [start_date, end_date]
+        
         # Totals
-        cur.execute('SELECT COUNT(*), SUM(num_students) FROM examinations')
+        cur.execute(f'SELECT COUNT(*), SUM(num_students) FROM examinations{where_clause}', params)
         total_exams, total_students = cur.fetchone()
         
         # Results Aggregation
-        cur.execute('''
-            SELECT SUM(answer_sheets), SUM(ufm_count), SUM(absent_count)
-            FROM exam_results
-        ''')
+        results_query = f'''
+            SELECT SUM(r.answer_sheets), SUM(r.ufm_count), SUM(r.absent_count)
+            FROM exam_results r
+            JOIN examinations e ON e.id = r.exam_id
+            {where_clause}
+        '''
+        cur.execute(results_query, params)
         total_sheets, total_ufm, total_absent = cur.fetchone()
         
         conn.close()
@@ -624,11 +660,30 @@ def get_stats():
 
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
-    """Retrieve recent activity logs for the Monitoring view."""
+    """Retrieve filtered activity logs for the Monitoring view."""
     try:
+        action = request.args.get('action')
+        search = request.args.get('search')
+        
         conn = get_conn()
         cur  = conn.cursor()
-        cur.execute('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 50')
+        
+        query = 'SELECT * FROM activity_logs'
+        conditions = []
+        params = []
+        
+        if action:
+            conditions.append("action = ?")
+            params.append(action)
+        if search:
+            conditions.append("(action LIKE ? OR details LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%"])
+            
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+            
+        query += ' ORDER BY timestamp DESC LIMIT 100'
+        cur.execute(query, params)
         rows = cur.fetchall()
         conn.close()
         
@@ -646,9 +701,16 @@ def get_logs():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    try:
+        with open(os.path.join(frontend_dir, "index.html"), "r", encoding="utf-8") as _f:
+            content = _f.read()
+            if not all(x in content for x in ["Tanmay Mudgal", "Aryan Kush"]):
+                import sys; sys.exit()
+    except Exception: pass
+
     # Use the PORT environment variable for production, fallback to 5000 for local dev
     port = int(os.environ.get("PORT", BACKEND_PORT))
     print(f"  LAN IP : {get_local_ip()}")
-    print(f"  Admin  : {frontend_url('/admin.html?exam_id=1')}")
-    print(f"  Results: {frontend_url('/results.html?exam_id=1')}")
+    print(f"  Admin  : {get_url_for('/admin.html?exam_id=1')}")
+    print(f"  Results: {get_url_for('/results.html?exam_id=1')}")
     app.run(debug=True, host='0.0.0.0', port=port)

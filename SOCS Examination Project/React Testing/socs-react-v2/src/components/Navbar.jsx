@@ -1,0 +1,66 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import ThemeToggle from './ThemeToggle';
+import { API_BASE } from '../hooks/useApi';
+
+const NAV_ITEMS = [
+  { id: 'exams',    label: 'Exams',     icon: '📋' },
+  { id: 'upload',   label: 'Upload',    icon: '📤' },
+  { id: 'insights', label: 'Insights',  icon: '📊' },
+  { id: 'activity', label: 'Activity',  icon: '🛡️' },
+];
+
+export default function Navbar({ activeView, onViewChange }) {
+  const [online, setOnline] = useState(false);
+
+  const checkHealth = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE()}/health`);
+      setOnline(res.ok);
+    } catch {
+      setOnline(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkHealth();
+    const id = setInterval(checkHealth, 5000);
+    return () => clearInterval(id);
+  }, [checkHealth]);
+
+  return (
+    <nav className="main-nav">
+      <div className="nav-container">
+        {/* Brand */}
+        <div className="nav-brand">
+          <div className="logo-wrap">🎓</div>
+          <div>
+            <h3>SoCS Exam Hub</h3>
+            <p>UPES Dehradun</p>
+          </div>
+        </div>
+
+        {/* Nav Links */}
+        <div className="nav-links">
+          {NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              className={`nav-btn${activeView === item.id ? ' active' : ''}`}
+              onClick={() => onViewChange(item.id)}
+            >
+              {item.icon} {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Right side */}
+        <div className="nav-right">
+          <ThemeToggle />
+          <div className="nav-status">
+            <div className={`status-dot ${online ? 'online' : 'offline'}`} />
+            <span>{online ? 'Backend Live' : 'Disconnected'}</span>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
