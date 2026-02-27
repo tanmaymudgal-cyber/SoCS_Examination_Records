@@ -5,15 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login — SoCS Exam Hub</title>
+    <meta name="description"
+        content="Secure staff and admin login for SoCS Examination Management System, UPES Dehradun.">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Google reCAPTCHA v2 -->
-    <!-- TODO: Replace YOUR_SITE_KEY with your actual reCAPTCHA v2 site key -->
-    <!-- Get your key at: https://www.google.com/recaptcha/admin -->
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 
     <style>
         :root {
@@ -29,8 +26,7 @@
             --border: #e2e8f0;
             --radius-lg: 16px;
             --radius-md: 10px;
-            --shadow: 0 4px 24px rgba(30, 75, 160, 0.10), 0 1.5px 6px rgba(0,0,0,0.06);
-            --shadow-card: 0 8px 32px rgba(30, 75, 160, 0.13), 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-card: 0 8px 32px rgba(30, 75, 160, .13), 0 2px 8px rgba(0, 0, 0, .08);
         }
 
         * {
@@ -56,8 +52,7 @@
             padding: 10px 20px;
             font-size: 12px;
             font-weight: 600;
-            letter-spacing: 0.5px;
-            opacity: 0.92;
+            letter-spacing: .5px;
         }
 
         /* ── Page Layout ── */
@@ -75,28 +70,24 @@
             max-width: 420px;
         }
 
-        /* ── Logo / Header Block ── */
+        /* ── Logo ── */
         .logo-block {
             text-align: center;
             margin-bottom: 24px;
         }
 
         .logo-block .college-logo {
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid white;
-            box-shadow: 0 4px 16px rgba(30, 75, 160, 0.18);
+            width: 100px;
+            height: auto;
+            max-width: 150px;
             margin-bottom: 14px;
-            background: white;
+            object-fit: contain;
         }
 
         .logo-block h2 {
             font-size: 22px;
             font-weight: 800;
             color: var(--primary);
-            letter-spacing: -0.3px;
         }
 
         .logo-block p {
@@ -125,14 +116,13 @@
 
         .card-header .header-icon {
             font-size: 26px;
-            background: rgba(255,255,255,0.15);
+            background: rgba(255, 255, 255, .15);
             width: 46px;
             height: 46px;
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
         }
 
         .card-header .header-text h3 {
@@ -143,7 +133,7 @@
 
         .card-header .header-text p {
             font-size: 12px;
-            color: rgba(255,255,255,0.75);
+            color: rgba(255, 255, 255, .75);
             margin-top: 2px;
         }
 
@@ -151,13 +141,13 @@
             padding: 28px;
         }
 
-        /* ── Role Selector ── */
+        /* ── Role Tabs ── */
         .role-tabs {
             display: flex;
             background: #f1f5f9;
             border-radius: 10px;
             padding: 4px;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             gap: 4px;
         }
 
@@ -171,22 +161,18 @@
             font-weight: 600;
             cursor: pointer;
             color: var(--text-muted);
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
+            transition: all .2s;
         }
 
         .role-tab.active {
             background: white;
             color: var(--primary);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .10);
         }
 
-        /* ── Form Fields ── */
+        /* ── Form ── */
         .form-group {
-            margin-bottom: 18px;
+            margin-bottom: 16px;
         }
 
         .form-group label {
@@ -195,7 +181,7 @@
             font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: .5px;
             margin-bottom: 7px;
         }
 
@@ -203,14 +189,14 @@
             position: relative;
         }
 
-        .input-wrapper .input-icon {
+        .input-icon {
             position: absolute;
             left: 13px;
             top: 50%;
             transform: translateY(-50%);
             font-size: 16px;
             pointer-events: none;
-            opacity: 0.5;
+            opacity: .5;
         }
 
         .form-input {
@@ -222,21 +208,20 @@
             font-family: 'Inter', sans-serif;
             color: var(--text-main);
             background: #f8fafc;
-            transition: all 0.2s;
+            transition: all .2s;
             outline: none;
         }
 
         .form-input:focus {
             border-color: var(--primary);
             background: white;
-            box-shadow: 0 0 0 3px rgba(30, 75, 160, 0.10);
+            box-shadow: 0 0 0 3px rgba(30, 75, 160, .10);
         }
 
         .form-input::placeholder {
             color: #b0bec5;
         }
 
-        /* password toggle */
         .pwd-toggle {
             position: absolute;
             right: 12px;
@@ -248,22 +233,12 @@
             font-size: 16px;
             color: var(--text-muted);
             padding: 2px;
-            line-height: 1;
         }
 
-        /* ── reCAPTCHA wrapper ── */
-        .recaptcha-wrapper {
-            display: flex;
-            justify-content: center;
-            margin: 20px 0 22px;
-            /* Note: reCAPTCHA widget renders at ~300px wide by Google */
-        }
-
-        /* ── Forgot Password ── */
         .extras {
             display: flex;
             justify-content: flex-end;
-            margin-top: -10px;
+            margin-top: -6px;
             margin-bottom: 18px;
         }
 
@@ -272,7 +247,11 @@
             font-weight: 600;
             color: var(--primary);
             text-decoration: none;
-            opacity: 0.8;
+            opacity: .8;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
         }
 
         .forgot-link:hover {
@@ -280,7 +259,7 @@
             text-decoration: underline;
         }
 
-        /* ── Submit Button ── */
+        /* ── Submit ── */
         .btn-login {
             width: 100%;
             padding: 13px;
@@ -295,47 +274,45 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            transition: all 0.2s;
-            letter-spacing: 0.3px;
+            transition: all .2s;
+            letter-spacing: .3px;
         }
 
         .btn-login:hover:not(:disabled) {
             background: var(--primary-dark);
             transform: translateY(-1px);
-            box-shadow: 0 4px 14px rgba(30, 75, 160, 0.30);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
+            box-shadow: 0 4px 14px rgba(30, 75, 160, .30);
         }
 
         .btn-login:disabled {
-            opacity: 0.55;
+            opacity: .55;
             cursor: not-allowed;
         }
 
-        /* ── Spinner inside button ── */
+        /* ── Spinner ── */
         .btn-spinner {
             display: none;
             width: 16px;
             height: 16px;
-            border: 2.5px solid rgba(255,255,255,0.4);
+            border: 2.5px solid rgba(255, 255, 255, .4);
             border-top-color: white;
             border-radius: 50%;
-            animation: spin 0.7s linear infinite;
+            animation: spin .7s linear infinite;
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
-        /* ── Alert Messages ── */
+        /* ── Alerts ── */
         .alert {
             padding: 11px 14px;
             border-radius: 8px;
             font-size: 13px;
             font-weight: 600;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
             display: none;
             align-items: center;
             gap: 8px;
@@ -363,28 +340,22 @@
             border: 1px solid #bfdbfe;
         }
 
-        /* ── Divider ── */
-        .divider {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 22px 0 18px;
-        }
-
-        .divider hr {
-            flex: 1;
-            border: none;
-            border-top: 1px solid var(--border);
-        }
-
-        .divider span {
-            font-size: 11px;
+        /* ── Credentials hint ── */
+        .creds-hint {
+            margin-top: 16px;
+            padding: 10px 14px;
+            background: var(--primary-light);
+            border-radius: 8px;
+            font-size: 11.5px;
             color: var(--text-muted);
-            font-weight: 600;
-            white-space: nowrap;
+            line-height: 1.6;
         }
 
-        /* ── Footer Note ── */
+        .creds-hint strong {
+            color: var(--primary);
+        }
+
+        /* ── Card footer ── */
         .card-footer-note {
             text-align: center;
             padding: 14px 28px 18px;
@@ -399,11 +370,7 @@
             text-decoration: none;
         }
 
-        .card-footer-note a:hover {
-            text-decoration: underline;
-        }
-
-        /* ── Bottom credits ── */
+        /* ── Page footer ── */
         .page-footer {
             text-align: center;
             padding: 18px;
@@ -411,20 +378,213 @@
             color: var(--text-muted);
         }
 
-        /* ── Security badge ── */
-        .security-badge {
+        /* ════════════════════════════════════════════
+           MODAL — shared styles
+        ════════════════════════════════════════════ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .45);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+            animation: fadeIn .2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0
+            }
+
+            to {
+                opacity: 1
+            }
+        }
+
+        .modal-box {
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 24px 64px rgba(0, 0, 0, .25);
+            width: 100%;
+            max-width: 400px;
+            overflow: hidden;
+            animation: slideUp .25s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(24px);
+                opacity: 0
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1
+            }
+        }
+
+        .modal-header {
+            background: var(--primary);
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 {
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            background: rgba(255, 255, 255, .15);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 14px;
-            font-weight: 500;
         }
 
-        .security-badge .lock-ico {
-            color: var(--success);
+        .modal-close:hover {
+            background: rgba(255, 255, 255, .3);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-step {
+            display: none;
+        }
+
+        .modal-step.active {
+            display: block;
+        }
+
+        .step-intro {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .step-intro strong {
+            color: var(--text-main);
+        }
+
+        .modal-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 6px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+            background: #f8fafc;
+            transition: all .2s;
+            outline: none;
+            margin-bottom: 14px;
+        }
+
+        .modal-input:focus {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(30, 75, 160, .10);
+        }
+
+        .modal-alert {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .modal-alert.show {
+            display: block;
+        }
+
+        .modal-alert.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .btn-modal-primary {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all .2s;
+        }
+
+        .btn-modal-primary:hover:not(:disabled) {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(30, 75, 160, .25);
+        }
+
+        .btn-modal-primary:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .modal-spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, .4);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+        }
+
+        .success-block {
+            text-align: center;
+            padding: 8px 0;
+        }
+
+        .success-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .success-block p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
         }
 
         /* ── Responsive ── */
@@ -445,18 +605,13 @@
             .logo-block h2 {
                 font-size: 19px;
             }
-
-            .recaptcha-wrapper {
-                transform: scale(0.88);
-                transform-origin: center;
-            }
         }
     </style>
 </head>
 
 <body>
 
-    <!-- Top info banner -->
+    <!-- Top banner -->
     <div class="top-banner">
         🔒 &nbsp; Authorized Personnel Only — SoCS Examination Management System
     </div>
@@ -464,13 +619,9 @@
     <div class="page-wrapper">
         <div class="login-container">
 
-            <!-- Logo & Branding -->
+            <!-- Logo -->
             <div class="logo-block">
-                <img
-                    class="college-logo"
-                    src="data:image/jpeg;base64,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"
-                    alt="UPES Logo"
-                >
+                <img class="college-logo" src="logo.png" alt="UPES Logo">
                 <h2>SoCS Exam Hub</h2>
                 <p>UPES Dehradun — School of Computer Science</p>
             </div>
@@ -482,43 +633,26 @@
                     <div class="header-icon">🔐</div>
                     <div class="header-text">
                         <h3>Sign In to Continue</h3>
-                        <p>Restricted — Staff & Admin access only</p>
+                        <p>Restricted — Staff &amp; Admin access only</p>
                     </div>
                 </div>
 
                 <div class="card-body">
 
-                    <!-- Role Tabs -->
-                    <div class="role-tabs">
-                        <button class="role-tab active" data-role="admin" onclick="setRole('admin', this)">
-                            🛡️ Admin
-                        </button>
-                        <button class="role-tab" data-role="invigilator" onclick="setRole('invigilator', this)">
-                            👤 Invigilator
-                        </button>
-                        <button class="role-tab" data-role="coordinator" onclick="setRole('coordinator', this)">
-                            📋 Coordinator
-                        </button>
-                    </div>
 
-                    <!-- Alert box (shown on error / success) -->
+
+                    <!-- Alert -->
                     <div id="alertBox" class="alert"></div>
 
                     <!-- Login Form -->
                     <form id="loginForm" onsubmit="handleLogin(event)" novalidate>
 
                         <div class="form-group">
-                            <label for="emailInput">Username / Email ID</label>
+                            <label for="usernameInput">Username</label>
                             <div class="input-wrapper">
                                 <span class="input-icon">👤</span>
-                                <input
-                                    type="text"
-                                    id="emailInput"
-                                    class="form-input"
-                                    placeholder="e.g. john.doe@upes.ac.in"
-                                    autocomplete="username"
-                                    required
-                                >
+                                <input type="text" id="usernameInput" class="form-input" placeholder="e.g. admin"
+                                    autocomplete="username" required>
                             </div>
                         </div>
 
@@ -526,105 +660,121 @@
                             <label for="passwordInput">Password</label>
                             <div class="input-wrapper">
                                 <span class="input-icon">🔑</span>
-                                <input
-                                    type="password"
-                                    id="passwordInput"
-                                    class="form-input"
-                                    placeholder="Enter your password"
-                                    autocomplete="current-password"
-                                    required
-                                >
-                                <button type="button" class="pwd-toggle" id="pwdToggle" onclick="togglePassword()" title="Show/Hide Password">
-                                    👁️
-                                </button>
+                                <input type="password" id="passwordInput" class="form-input"
+                                    placeholder="Enter your password" autocomplete="current-password" required>
+                                <button type="button" class="pwd-toggle" id="pwdToggle" onclick="togglePassword()"
+                                    title="Show/Hide">👁️</button>
                             </div>
                         </div>
 
                         <div class="extras">
-                            <a href="#" class="forgot-link" onclick="showForgotHint(event)">Forgot password?</a>
+                            <button type="button" class="forgot-link" onclick="openForgotModal()">Forgot
+                                password?</button>
                         </div>
 
-                        <!-- Google reCAPTCHA v2 -->
-                        <!--
-                            IMPORTANT: Replace "YOUR_SITE_KEY_HERE" with your actual Google reCAPTCHA v2 site key.
-                            Steps to get your key:
-                            1. Go to https://www.google.com/recaptcha/admin
-                            2. Register a new site (choose reCAPTCHA v2 > "I'm not a robot" Checkbox)
-                            3. Add your domain (e.g. localhost or your server IP)
-                            4. Copy the "Site Key" and paste it below
-                        -->
-                        <div class="recaptcha-wrapper">
-                            <div
-                                class="g-recaptcha"
-                                data-sitekey="YOUR_SITE_KEY_HERE"
-                                data-theme="light"
-                                data-callback="onRecaptchaSuccess"
-                                data-expired-callback="onRecaptchaExpired"
-                            ></div>
-                        </div>
-
-                        <button type="submit" class="btn-login" id="loginBtn" disabled>
+                        <button type="submit" class="btn-login" id="loginBtn">
                             <span class="btn-spinner" id="btnSpinner"></span>
                             <span id="btnText">🔓 Sign In</span>
                         </button>
 
                     </form>
 
-                    <div class="security-badge">
-                        <span class="lock-ico">🔒</span>
-                        Secured with Google reCAPTCHA — 256-bit SSL
+                    <!-- Default credentials hint -->
+                    <div class="creds-hint">
+                        <strong>Default credentials:</strong><br>
+                        admin / admin123 &nbsp;|&nbsp; invigilator / invig123 &nbsp;|&nbsp; coordinator / coord123
                     </div>
 
                 </div><!-- /card-body -->
 
                 <div class="card-footer-note">
-                    Having trouble logging in? Contact
-                    <a href="/cdn-cgi/l/email-protection#40332f23336d21242d292e00353025336e21236e292e"><span class="__cf_email__" data-cfemail="f1829e9282dc90959c989fb184819482df9092df989f">[email&#160;protected]</span></a>
+                    Having trouble? Contact
+                    <a href="mailto:socs-admin@upes.ac.in">socs-admin@upes.ac.in</a>
                 </div>
 
             </div><!-- /login-card -->
 
-            <!-- Page footer -->
             <div class="page-footer">
-                SoCS Exam Hub &nbsp;·&nbsp; UPES Dehradun &nbsp;·&nbsp; v1.0.0
-                <br>Built for internal use — School of Computer Science
+                SoCS Exam Hub &nbsp;·&nbsp; UPES Dehradun &nbsp;·&nbsp; v1.0.0<br>
+                Built for internal use — School of Computer Science
             </div>
 
         </div><!-- /login-container -->
     </div><!-- /page-wrapper -->
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-        /* ── State ─────────────────────────────────────────────────────────── */
-        let selectedRole = 'admin';
-        let recaptchaVerified = false;
 
-        /* ── API Base (same pattern as your script.js) ─────────────────────── */
-        // TODO: Connect to your backend API endpoint when ready
-        // const API_BASE_URL = 'http://' + location.hostname + ':5000/api';
+    <!-- ════════════════════════════════════════════════════
+         FORGOT PASSWORD MODAL
+    ════════════════════════════════════════════════════ -->
+    <div id="forgotModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="forgotTitle">
+        <div class="modal-box">
 
-        /* ── Role Selection ─────────────────────────────────────────────────── */
-        function setRole(role, btn) {
-            selectedRole = role;
-            document.querySelectorAll('.role-tab').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            clearAlert();
+            <div class="modal-header">
+                <h3 id="forgotTitle">🔑 Reset Password</h3>
+                <button class="modal-close" onclick="closeForgotModal()" title="Close">✕</button>
+            </div>
+
+            <div class="modal-body">
+
+                <!-- Step 1: Security verification -->
+                <div id="step1" class="modal-step active">
+                    <p class="step-intro">
+                        Enter your <strong>username</strong> and <strong>registered email</strong>
+                        to verify your identity. You'll be redirected to set a new password.
+                    </p>
+
+                    <div id="forgotAlert" class="modal-alert error"></div>
+
+                    <form id="forgotForm" onsubmit="handleForgot(event)" novalidate>
+                        <label class="modal-label" for="forgotUsername">Username</label>
+                        <input type="text" id="forgotUsername" class="modal-input" placeholder="e.g. admin"
+                            autocomplete="username" required>
+
+                        <label class="modal-label" for="forgotEmail">Registered Email</label>
+                        <input type="email" id="forgotEmail" class="modal-input" placeholder="e.g. admin@upes.ac.in"
+                            autocomplete="email" required>
+
+                        <button type="submit" class="btn-modal-primary" id="forgotBtn">
+                            <span class="modal-spinner" id="forgotSpinner"></span>
+                            <span id="forgotBtnText">🔍 Verify &amp; Continue</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Step 2: Success / redirect -->
+                <div id="step2" class="modal-step">
+                    <div class="success-block">
+                        <div class="success-icon">✅</div>
+                        <p>
+                            Identity verified! Redirecting you to the
+                            <strong>password reset page</strong>…
+                        </p>
+                    </div>
+                </div>
+
+            </div><!-- /modal-body -->
+        </div>
+    </div>
+
+
+    <script>
+        /* ──────────────────────────────────────────────
+           CONFIG
+        ─────────────────────────────────────────────── */
+        // Auto-detect backend port: if frontend is served from Flask (port 5000)
+        // use same origin; otherwise assume backend is on :5000.
+        function apiBase() {
+            if (location.port === '5000' || location.port === '') {
+                return location.origin + '/api';
+            }
+            return location.protocol + '//' + location.hostname + ':5000/api';
         }
 
-        /* ── reCAPTCHA Callbacks ────────────────────────────────────────────── */
-        function onRecaptchaSuccess(token) {
-            recaptchaVerified = true;
-            document.getElementById('loginBtn').disabled = false;
-            // token is the reCAPTCHA response — send this to your backend for server-side verification
-            console.log('reCAPTCHA verified ✔');
-        }
 
-        function onRecaptchaExpired() {
-            recaptchaVerified = false;
-            document.getElementById('loginBtn').disabled = true;
-            showAlert('⚠️ reCAPTCHA expired. Please verify again.', 'info');
-        }
 
-        /* ── Password Toggle ────────────────────────────────────────────────── */
+        /* ──────────────────────────────────────────────
+           PASSWORD TOGGLE
+        ─────────────────────────────────────────────── */
         function togglePassword() {
             const inp = document.getElementById('passwordInput');
             const btn = document.getElementById('pwdToggle');
@@ -639,48 +789,45 @@
             }
         }
 
-        /* ── Alert Helpers ──────────────────────────────────────────────────── */
+        /* ──────────────────────────────────────────────
+           ALERTS
+        ─────────────────────────────────────────────── */
         function showAlert(msg, type = 'error') {
             const box = document.getElementById('alertBox');
-            box.textContent = '';
             box.className = 'alert show alert-' + type;
             box.textContent = msg;
         }
-
         function clearAlert() {
             const box = document.getElementById('alertBox');
             box.className = 'alert';
             box.textContent = '';
         }
 
-        /* ── Forgot Password hint ───────────────────────────────────────────── */
-        function showForgotHint(e) {
-            e.preventDefault();
-            showAlert('📧 Please contact socs-admin@upes.ac.in to reset your password.', 'info');
-        }
-
-        /* ── Button Loading State ───────────────────────────────────────────── */
-        function setLoading(loading) {
+        /* ──────────────────────────────────────────────
+           BUTTON LOADING STATE
+        ─────────────────────────────────────────────── */
+        function setLoading(on) {
             const btn = document.getElementById('loginBtn');
             const spinner = document.getElementById('btnSpinner');
             const text = document.getElementById('btnText');
-            btn.disabled = loading;
-            spinner.style.display = loading ? 'block' : 'none';
-            text.textContent = loading ? 'Signing in…' : '🔓 Sign In';
+            btn.disabled = on;
+            spinner.style.display = on ? 'block' : 'none';
+            text.textContent = on ? 'Signing in…' : '🔓 Sign In';
         }
 
-        /* ── Main Login Handler ─────────────────────────────────────────────── */
+        /* ──────────────────────────────────────────────
+           MAIN LOGIN HANDLER
+        ─────────────────────────────────────────────── */
         async function handleLogin(e) {
             e.preventDefault();
             clearAlert();
 
-            const email = document.getElementById('emailInput').value.trim();
+            const username = document.getElementById('usernameInput').value.trim();
             const password = document.getElementById('passwordInput').value;
 
-            // Basic client-side validation
-            if (!email) {
-                showAlert('⚠️ Please enter your username or email.', 'error');
-                document.getElementById('emailInput').focus();
+            if (!username) {
+                showAlert('⚠️ Please enter your username.', 'error');
+                document.getElementById('usernameInput').focus();
                 return;
             }
             if (!password) {
@@ -688,85 +835,141 @@
                 document.getElementById('passwordInput').focus();
                 return;
             }
-            if (!recaptchaVerified) {
-                showAlert('⚠️ Please complete the reCAPTCHA verification.', 'error');
-                return;
-            }
 
             setLoading(true);
 
             try {
-                /*
-                 * ── TODO: Replace this block with real API call ──────────────
-                 *
-                 * const recaptchaToken = grecaptcha.getResponse();
-                 *
-                 * const res = await fetch(`${API_BASE_URL}/auth/login`, {
-                 *     method: 'POST',
-                 *     headers: { 'Content-Type': 'application/json' },
-                 *     body: JSON.stringify({
-                 *         username: email,
-                 *         password: password,
-                 *         role: selectedRole,
-                 *         recaptcha_token: recaptchaToken
-                 *     })
-                 * });
-                 *
-                 * const data = await res.json();
-                 *
-                 * if (!res.ok) {
-                 *     throw new Error(data.error || 'Login failed. Please try again.');
-                 * }
-                 *
-                 * // Save token or session info
-                 * localStorage.setItem('auth_token', data.token);
-                 * localStorage.setItem('user_role', selectedRole);
-                 *
-                 * // Redirect based on role
-                 * if (selectedRole === 'admin') window.location.href = 'index.html';
-                 * else window.location.href = 'attendance.html';
-                 *
-                 * ─────────────────────────────────────────────────────────────
-                 *
-                 * Below is a DEMO simulation — remove when connecting to backend
-                 */
+                const res = await fetch(`${apiBase()}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
 
-                // DEMO: Simulate network delay
-                await new Promise(r => setTimeout(r, 1200));
+                if (!res.ok) {
+                    throw new Error(data.error || 'Login failed. Please try again.');
+                }
 
-                // DEMO: Accept any credentials (for UI testing only)
+                // Persist session
+                localStorage.setItem('auth_token', data.token);
+                localStorage.setItem('user_role', data.role);
+                localStorage.setItem('user_username', data.username);
+
                 showAlert('✅ Login successful! Redirecting…', 'success');
-                setTimeout(() => {
-                    // Redirect based on selected role
-                    if (selectedRole === 'admin') {
-                        window.location.href = 'index.html';
-                    } else if (selectedRole === 'invigilator') {
-                        window.location.href = 'attendance.html';
-                    } else {
-                        window.location.href = 'index.html';
-                    }
-                }, 1000);
+
+                // Redirect to main app — role-aware if needed in future
+                setTimeout(() => { window.location.href = 'index.html'; }, 900);
 
             } catch (err) {
                 showAlert('❌ ' + (err.message || 'Login failed. Please try again.'), 'error');
-                // Reset reCAPTCHA on failure
-                if (typeof grecaptcha !== 'undefined') {
-                    grecaptcha.reset();
-                    recaptchaVerified = false;
-                    document.getElementById('loginBtn').disabled = true;
-                }
             } finally {
                 setLoading(false);
             }
         }
 
-        /* ── Enter key submits form ─────────────────────────────────────────── */
-        document.addEventListener('keydown', function(e) {
+        /* ──────────────────────────────────────────────
+           FORGOT PASSWORD MODAL
+        ─────────────────────────────────────────────── */
+        function openForgotModal() {
+            // Reset state
+            document.getElementById('step1').classList.add('active');
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('forgotUsername').value = '';
+            document.getElementById('forgotEmail').value = '';
+            hideForgotAlert();
+            resetForgotBtn();
+
+            document.getElementById('forgotModal').classList.add('open');
+            setTimeout(() => document.getElementById('forgotUsername').focus(), 200);
+        }
+
+        function closeForgotModal() {
+            document.getElementById('forgotModal').classList.remove('open');
+        }
+
+        // Close on backdrop click
+        document.getElementById('forgotModal').addEventListener('click', function (e) {
+            if (e.target === this) closeForgotModal();
+        });
+
+        function showForgotAlert(msg) {
+            const el = document.getElementById('forgotAlert');
+            el.textContent = msg;
+            el.classList.add('show');
+        }
+        function hideForgotAlert() {
+            const el = document.getElementById('forgotAlert');
+            el.textContent = '';
+            el.classList.remove('show');
+        }
+
+        function setForgotLoading(on) {
+            const btn = document.getElementById('forgotBtn');
+            const spinner = document.getElementById('forgotSpinner');
+            const text = document.getElementById('forgotBtnText');
+            btn.disabled = on;
+            spinner.style.display = on ? 'inline-block' : 'none';
+            text.innerHTML = on ? 'Verifying…' : '🔍 Verify &amp; Continue';
+        }
+
+        function resetForgotBtn() {
+            setForgotLoading(false);
+        }
+
+        async function handleForgot(e) {
+            e.preventDefault();
+            hideForgotAlert();
+
+            const username = document.getElementById('forgotUsername').value.trim();
+            const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
+
+            if (!username) { showForgotAlert('Please enter your username.'); return; }
+            if (!email) { showForgotAlert('Please enter your registered email.'); return; }
+
+            setForgotLoading(true);
+
+            try {
+                const res = await fetch(`${apiBase()}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'Verification failed. Please check your details.');
+                }
+
+                // Verification passed — transition to step 2 then redirect
+                document.getElementById('step1').classList.remove('active');
+                document.getElementById('step2').classList.add('active');
+
+                // Redirect to reset page with token embedded in URL
+                setTimeout(() => {
+                    window.location.href = `reset-password.html?token=${encodeURIComponent(data.token)}`;
+                }, 1500);
+
+            } catch (err) {
+                showForgotAlert('❌ ' + (err.message || 'Something went wrong.'));
+                setForgotLoading(false);
+            }
+        }
+
+        /* ──────────────────────────────────────────────
+           ENTER KEY → SUBMIT
+        ─────────────────────────────────────────────── */
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeForgotModal();
             if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') {
-                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+                if (document.getElementById('forgotModal').classList.contains('open')) {
+                    document.getElementById('forgotForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                } else {
+                    document.getElementById('loginForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
             }
         });
     </script>
 
 </body>
+
 </html>

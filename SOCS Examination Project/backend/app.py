@@ -8,8 +8,13 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
-import json, io, os, socket
-from datetime import datetime
+import json, io, os, socket, uuid
+from datetime import datetime, timedelta
+import bcrypt
+from dotenv import load_dotenv
+
+# Load .env if present
+load_dotenv()
 
 # Initialize Flask with frontend folder as static source
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
@@ -60,19 +65,60 @@ def get_url_for(path):
 DB_PATH = os.path.join(os.path.dirname(__file__), "exams.db")
 
 def get_conn():
+    db_url = os.environ.get("DATABASE_URL")
+    
+    # If DATABASE_URL is present, use PostgreSQL (Supabase/Render)
+    if db_url and (db_url.startswith("postgres://") or db_url.startswith("postgresql://")):
+        # Render/Supabase compatibility fix
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        
+        import psycopg2
+        conn = psycopg2.connect(db_url)
+        return conn
+    
+    # Otherwise fallback to SQLite
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
+def get_placeholder():
+    """Returns '?' for SQLite, '%s' for Postgres."""
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url and (db_url.startswith("postgres://") or db_url.startswith("postgresql://")):
+        return "%s"
+    return "?"
+
+SESSION_TIMEOUT_MINUTES = 30
+RESET_TOKEN_EXPIRY_MINUTES = 15
+
+DEFAULT_USERS = [
+    ('admin',       'admin123',  'admin',       'admin@upes.ac.in'),
+    ('invigilator', 'invig123',  'invigilator', 'invigilator@upes.ac.in'),
+    ('coordinator', 'coord123',  'coordinator', 'coordinator@upes.ac.in'),
+]
+
+def hash_password(plain):
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+def check_password(plain, hashed):
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
+
 def init_db():
     conn = get_conn()
     cur  = conn.cursor()
+    
+    is_postgres = False
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url and (db_url.startswith("postgres://") or db_url.startswith("postgresql://")):
+        is_postgres = True
 
-    # Drop old table if columns have changed (dev convenience)
-    # In production you would use migrations instead.
-    cur.execute('''
+    # ── examinations table ──────────────────────────────────────────────────
+    id_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    
+    cur.execute(f'''
         CREATE TABLE IF NOT EXISTS examinations (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            id               {id_type},
             exam_title       TEXT    NOT NULL,
             room_number      TEXT    NOT NULL,
             exam_date        TEXT    NOT NULL,
@@ -87,9 +133,10 @@ def init_db():
         )
     ''')
 
-    cur.execute('''
+    # ── exam_results table ──────────────────────────────────────────────────
+    cur.execute(f'''
         CREATE TABLE IF NOT EXISTS exam_results (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            id               {id_type},
             exam_id          INTEGER NOT NULL,
             answer_sheets    INTEGER DEFAULT 0,
             ufm_count        INTEGER DEFAULT 0,
@@ -101,15 +148,85 @@ def init_db():
         )
     ''')
 
-    cur.execute('''
+    # ── activity_logs table ──────────────────────────────────────────────────
+    cur.execute(f'''
         CREATE TABLE IF NOT EXISTS activity_logs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          {id_type},
             timestamp   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             action      TEXT    NOT NULL,
             details     TEXT,
             ip_address  TEXT
         )
     ''')
+
+    # ── Auth tables ──────────────────────────────────────────────────────────
+    cur.execute(f'''
+        CREATE TABLE IF NOT EXISTS users (
+            id           {id_type},
+            username     TEXT    NOT NULL UNIQUE,
+            password     TEXT    NOT NULL,
+            role         TEXT    NOT NULL,
+            email        TEXT,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ── Migrate: add email column if it doesn't exist ─────────────────────────
+    if is_postgres:
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='email'")
+        if not cur.fetchone():
+            cur.execute('ALTER TABLE users ADD COLUMN email TEXT')
+    else:
+        existing_cols = [row[1] for row in cur.execute('PRAGMA table_info(users)').fetchall()]
+        if 'email' not in existing_cols:
+            cur.execute('ALTER TABLE users ADD COLUMN email TEXT')
+
+    cur.execute(f'''
+        CREATE TABLE IF NOT EXISTS sessions (
+            token        TEXT    PRIMARY KEY,
+            user_id      INTEGER NOT NULL,
+            role         TEXT    NOT NULL,
+            username     TEXT    NOT NULL,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at   TIMESTAMP NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    ''')
+
+    cur.execute(f'''
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            token        TEXT    PRIMARY KEY,
+            user_id      INTEGER NOT NULL,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at   TIMESTAMP NOT NULL,
+            used         INTEGER  DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    ''')
+
+    # ── Seed default users if table is empty ─────────────────────────────────
+    cur.execute('SELECT COUNT(*) FROM users')
+    if cur.fetchone()[0] == 0:
+        p = "%s" if is_postgres else "?"
+        for uname, pwd, role, email in DEFAULT_USERS:
+            cur.execute(
+                f'INSERT INTO users (username, password, role, email) VALUES ({p}, {p}, {p}, {p})',
+                (uname, hash_password(pwd), role, email)
+            )
+    else:
+        # ── Back-fill emails for existing default users that have none ────────
+        p = "%s" if is_postgres else "?"
+        for uname, _pwd, _role, email in DEFAULT_USERS:
+            if is_postgres:
+                cur.execute(
+                    f'UPDATE users SET email = {p} WHERE username = {p} AND (email IS NULL OR email = \'\')',
+                    (email, uname)
+                )
+            else:
+                cur.execute(
+                    f'UPDATE users SET email = {p} WHERE username = {p} AND (email IS NULL OR email = "")',
+                    (email, uname)
+                )
 
     conn.commit()
     conn.close()
@@ -126,9 +243,10 @@ def log_activity(action, details=None):
         ip_addr = '0.0.0.0'
 
     try:
+        p = get_placeholder()
         conn = get_conn()
         conn.execute(
-            "INSERT INTO activity_logs (action, details, ip_address) VALUES (?, ?, ?)",
+            f"INSERT INTO activity_logs (action, details, ip_address) VALUES ({p}, {p}, {p})",
             (action, details, ip_addr)
         )
         conn.commit()
@@ -158,6 +276,228 @@ def row_to_result(row):
     return dict(zip(keys, row))
 
 # ─── routes ───────────────────────────────────────────────────────────────────
+
+# ─── auth routes ──────────────────────────────────────────────────────────────
+
+def _get_token_from_header():
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        return auth[7:].strip()
+    return None
+
+def _get_session(token):
+    """Return session row if token is valid and not expired, else None."""
+    if not token:
+        return None
+    p = get_placeholder()
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        f"SELECT token, user_id, role, username, expires_at FROM sessions WHERE token = {p}",
+        (token,)
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    expires_at = datetime.fromisoformat(row[4])
+    if datetime.utcnow() > expires_at:
+        return None
+    return {'token': row[0], 'user_id': row[1], 'role': row[2], 'username': row[3]}
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    """Authenticate user and issue a session token."""
+    try:
+        data = request.get_json(force=True) or {}
+        username = (data.get('username') or '').strip().lower()
+        password = data.get('password', '')
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        p = get_placeholder()
+        conn = get_conn()
+        cur  = conn.cursor()
+        cur.execute(f'SELECT id, password, role FROM users WHERE username = {p}', (username,))
+        row = cur.fetchone()
+
+        if not row or not check_password(password, row[1]):
+            conn.close()
+            log_activity('LOGIN_FAIL', f'Username: {username}')
+            return jsonify({'error': 'Invalid username or password'}), 401
+
+        user_id, _, role = row
+
+        p = get_placeholder()
+        # Invalidate any existing session for this user
+        cur.execute(f'DELETE FROM sessions WHERE user_id = {p}', (user_id,))
+
+        token = str(uuid.uuid4())
+        now   = datetime.utcnow()
+        exp   = now + timedelta(minutes=SESSION_TIMEOUT_MINUTES)
+
+        p = get_placeholder()
+        cur.execute(
+            f'INSERT INTO sessions (token, user_id, role, username, created_at, expires_at) VALUES ({p}, {p}, {p}, {p}, {p}, {p})',
+            (token, user_id, role, username, now.isoformat(), exp.isoformat())
+        )
+        conn.commit()
+        conn.close()
+
+        log_activity('LOGIN_SUCCESS', f'Username: {username}, Role: {role}')
+        return jsonify({
+            'token':    token,
+            'role':     role,
+            'username': username,
+            'expires_at': exp.isoformat()
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    """Invalidate the current session token."""
+    token = _get_token_from_header()
+    if token:
+        p = get_placeholder()
+        conn = get_conn()
+        conn.execute(f'DELETE FROM sessions WHERE token = {p}', (token,))
+        conn.commit()
+        conn.close()
+        log_activity('LOGOUT', f'Token: {token[:8]}…')
+    return jsonify({'message': 'Logged out'}), 200
+
+
+@app.route('/api/auth/verify', methods=['GET'])
+def auth_verify():
+    """Check token validity. If valid, extend the expiry by SESSION_TIMEOUT_MINUTES."""
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized or session expired'}), 401
+
+    # Slide the expiry window
+    new_exp = (datetime.utcnow() + timedelta(minutes=SESSION_TIMEOUT_MINUTES)).isoformat()
+    p = get_placeholder()
+    conn = get_conn()
+    conn.execute(f'UPDATE sessions SET expires_at = {p} WHERE token = {p}', (new_exp, token))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'valid':    True,
+        'role':     session['role'],
+        'username': session['username'],
+        'expires_at': new_exp
+    }), 200
+
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def auth_forgot_password():
+    """Security-verified password reset: requires username + registered email."""
+    try:
+        data     = request.get_json(force=True) or {}
+        username = (data.get('username') or '').strip().lower()
+        email    = (data.get('email')    or '').strip().lower()
+
+        if not username or not email:
+            return jsonify({'error': 'Username and email are required'}), 400
+
+        p = get_placeholder()
+        conn = get_conn()
+        cur  = conn.cursor()
+        cur.execute(f'SELECT id, email FROM users WHERE username = {p}', (username,))
+        row = cur.fetchone()
+
+        # Security verification: both username AND email must match
+        if not row or (row[1] or '').strip().lower() != email:
+            conn.close()
+            # Intentionally vague to avoid user enumeration
+            return jsonify({'error': 'No account found with that username and email combination.'}), 404
+
+        user_id = row[0]
+        p = get_placeholder()
+        # Expire any previous unused tokens for this user
+        cur.execute(f'UPDATE password_reset_tokens SET used = 1 WHERE user_id = {p} AND used = 0', (user_id,))
+
+        token = str(uuid.uuid4())
+        now   = datetime.utcnow()
+        exp   = now + timedelta(minutes=RESET_TOKEN_EXPIRY_MINUTES)
+        p = get_placeholder()
+        cur.execute(
+            f'INSERT INTO password_reset_tokens (token, user_id, created_at, expires_at) VALUES ({p}, {p}, {p}, {p})',
+            (token, user_id, now.isoformat(), exp.isoformat())
+        )
+        conn.commit()
+        conn.close()
+
+        log_activity('PASSWORD_RESET_REQUEST', f'Username: {username}')
+        log_file = os.path.join(os.path.dirname(__file__), 'development.log')
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"[PASSWORD RESET] User: {username}  Token: {token}  Expires: {exp.isoformat()}\n")
+
+        # Return token so the frontend can redirect directly to the reset page
+        return jsonify({
+            'message': 'Verification successful. Redirecting to password reset…',
+            'token':   token,
+            'expires_at': exp.isoformat()
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def auth_reset_password():
+    """Accept a reset token and a new password, update the user's password."""
+    try:
+        data         = request.get_json(force=True) or {}
+        reset_token  = (data.get('token') or '').strip()
+        new_password = data.get('new_password', '')
+
+        if not reset_token or not new_password:
+            return jsonify({'error': 'Token and new_password are required'}), 400
+        if len(new_password) < 6:
+            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+
+        p = get_placeholder()
+        conn = get_conn()
+        cur  = conn.cursor()
+        cur.execute(
+            f'SELECT user_id, expires_at, used FROM password_reset_tokens WHERE token = {p}',
+            (reset_token,)
+        )
+        row = cur.fetchone()
+
+        if not row:
+            conn.close()
+            return jsonify({'error': 'Invalid or expired reset token'}), 400
+
+        user_id, exp_str, used = row
+        if used:
+            conn.close()
+            return jsonify({'error': 'Reset token has already been used'}), 400
+        if datetime.utcnow() > datetime.fromisoformat(exp_str):
+            conn.close()
+            return jsonify({'error': 'Reset token has expired'}), 400
+
+        hashed = hash_password(new_password)
+        p = get_placeholder()
+        cur.execute(f'UPDATE users SET password = {p} WHERE id = {p}', (hashed, user_id))
+        cur.execute(f'UPDATE password_reset_tokens SET used = 1 WHERE token = {p}', (reset_token,))
+        cur.execute(f'DELETE FROM sessions WHERE user_id = {p}', (user_id,))  # invalidate all sessions
+        conn.commit()
+        conn.close()
+
+        log_activity('PASSWORD_RESET_SUCCESS', f'User ID: {user_id}')
+        return jsonify({'message': 'Password updated successfully. Please log in with your new password.'}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -223,13 +563,14 @@ def upload_excel():
         cur  = conn.cursor()
         inserted = 0
 
+        p = get_placeholder()
         for _, row in df.iterrows():
-            cur.execute('''
+            cur.execute(f'''
                 INSERT INTO examinations
                     (exam_title, room_number, exam_date, exam_time,
                      program_batch, semester, course_name, course_code,
                      evaluator_name, num_students)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})
             ''', (
                 getcol(row, col_map['exam_title']),
                 getcol(row, col_map['room_number']),
@@ -292,8 +633,9 @@ def get_examination(exam_id):
 @app.route('/api/examination/<int:exam_id>', methods=['DELETE'])
 def delete_examination(exam_id):
     try:
+        p = get_placeholder()
         conn = get_conn()
-        conn.execute('DELETE FROM examinations WHERE id = ?', (exam_id,))
+        conn.execute(f'DELETE FROM examinations WHERE id = {p}', (exam_id,))
         conn.commit()
         conn.close()
         log_activity("RECORD_DELETE", f"Exam ID: {exam_id}")
@@ -332,18 +674,36 @@ def submit_results():
         if exam_id is None:
             return jsonify({'error': 'exam_id is required'}), 400
 
+        p = get_placeholder()
         conn = get_conn()
         cur  = conn.cursor()
-        cur.execute('SELECT id FROM examinations WHERE id = ?', (exam_id,))
+        cur.execute(f'SELECT id FROM examinations WHERE id = {p}', (exam_id,))
         if not cur.fetchone():
             conn.close()
             return jsonify({'error': 'Examination not found'}), 404
 
-        cur.execute('''
-            INSERT OR REPLACE INTO exam_results
-                (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by))
+        p = get_placeholder()
+        # Note: Postgres doesn't have INSERT OR REPLACE, we use ON CONFLICT
+        is_postgres = os.environ.get("DATABASE_URL") and ("postgres://" in os.environ.get("DATABASE_URL") or "postgresql://" in os.environ.get("DATABASE_URL"))
+        
+        if is_postgres:
+            cur.execute(f'''
+                INSERT INTO exam_results
+                    (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by)
+                VALUES ({p}, {p}, {p}, {p}, {p}, {p})
+                ON CONFLICT (exam_id) DO UPDATE SET
+                    answer_sheets = EXCLUDED.answer_sheets,
+                    ufm_count = EXCLUDED.ufm_count,
+                    absent_count = EXCLUDED.absent_count,
+                    remarks = EXCLUDED.remarks,
+                    submitted_by = EXCLUDED.submitted_by
+            ''', (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by))
+        else:
+            cur.execute(f'''
+                INSERT OR REPLACE INTO exam_results
+                    (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by)
+                VALUES ({p}, {p}, {p}, {p}, {p}, {p})
+            ''', (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by))
         conn.commit()
         new_id = cur.lastrowid
         conn.close()
@@ -359,9 +719,10 @@ def submit_results():
 @app.route('/api/results/<int:exam_id>', methods=['GET'])
 def get_results(exam_id):
     try:
+        p = get_placeholder()
         conn = get_conn()
         cur  = conn.cursor()
-        cur.execute('SELECT * FROM exam_results WHERE exam_id = ? ORDER BY submitted_at DESC', (exam_id,))
+        cur.execute(f'SELECT * FROM exam_results WHERE exam_id = {p} ORDER BY submitted_at DESC', (exam_id,))
         rows = cur.fetchall()
         conn.close()
         return jsonify([row_to_result(r) for r in rows]), 200
@@ -373,15 +734,17 @@ def get_results(exam_id):
 def admin_exam_view(exam_id):
     """Full admin view: exam info + all submitted results."""
     try:
+        p = get_placeholder()
         conn = get_conn()
         cur  = conn.cursor()
-        cur.execute('SELECT * FROM examinations WHERE id = ?', (exam_id,))
+        cur.execute(f'SELECT * FROM examinations WHERE id = {p}', (exam_id,))
         row = cur.fetchone()
         if not row:
             conn.close()
             return jsonify({'error': 'Record not found'}), 404
         exam = row_to_exam(row)
-        cur.execute('SELECT * FROM exam_results WHERE exam_id = ? ORDER BY submitted_at DESC', (exam_id,))
+        p = get_placeholder()
+        cur.execute(f'SELECT * FROM exam_results WHERE exam_id = {p} ORDER BY submitted_at DESC', (exam_id,))
         exam['results'] = [row_to_result(r) for r in cur.fetchall()]
         conn.close()
         return jsonify(exam), 200
@@ -499,9 +862,10 @@ def draw_label(pdf, exam, x, y, w, h, admin_url, input_url):
 def generate_pdf(exam_id):
     """Generate ONE PDF for a single exam session (Single Label)."""
     try:
+        p = get_placeholder()
         conn = get_conn()
         cur  = conn.cursor()
-        cur.execute('SELECT * FROM examinations WHERE id = ?', (exam_id,))
+        cur.execute(f'SELECT * FROM examinations WHERE id = {p}', (exam_id,))
         row  = cur.fetchone()
         conn.close()
         if not row: return jsonify({'error': 'Not found'}), 404
