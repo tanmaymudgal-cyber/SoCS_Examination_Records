@@ -764,10 +764,11 @@
         // Auto-detect backend port: if frontend is served from Flask (port 5000)
         // use same origin; otherwise assume backend is on :5000.
         function apiBase() {
-            if (location.port === '5000' || location.port === '') {
-                return location.origin + '/api';
+            const { hostname, protocol, port } = window.location;
+            if (!port || port === '80' || port === '443' || port === '5000') {
+                return `${protocol}//${hostname}/api`;
             }
-            return location.protocol + '//' + location.hostname + ':5000/api';
+            return `${protocol}//${hostname}:5000/api`;
         }
 
 
