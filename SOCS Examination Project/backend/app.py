@@ -74,7 +74,14 @@ def get_conn():
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         
         import psycopg2
-        conn = psycopg2.connect(db_url)
+        
+        # Auto-append sslmode=require if missing (often required for Supabase/Render)
+        if "sslmode=" not in db_url:
+            separator = "&" if "?" in db_url else "?"
+            db_url += f"{separator}sslmode=require"
+            
+        # Use prepare_threshold=None to support Supabase Connection Pooler (Transaction mode)
+        conn = psycopg2.connect(db_url, prepare_threshold=None)
         return conn
     
     # Otherwise fallback to SQLite
