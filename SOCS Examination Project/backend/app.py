@@ -66,12 +66,17 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "exams.db")
 
 def get_conn():
     db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        db_url = db_url.strip()
     
     # If DATABASE_URL is present, use PostgreSQL (Supabase/Render)
     if db_url and (db_url.startswith("postgres://") or db_url.startswith("postgresql://")):
         # Render/Supabase compatibility fix
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
+        
+        # Sanitized logging for debugging
+        print(f"Connecting to Database: {db_url.split('@')[-1]}") 
         
         import psycopg2
         
@@ -81,8 +86,12 @@ def get_conn():
             db_url += f"{separator}sslmode=require"
             
         # Use prepare_threshold=None to support Supabase Connection Pooler (Transaction mode)
-        conn = psycopg2.connect(db_url, prepare_threshold=None)
-        return conn
+        try:
+            conn = psycopg2.connect(db_url, prepare_threshold=None)
+            return conn
+        except Exception as e:
+            print(f"PostgreSQL Connection Error: {str(e)}")
+            raise
     
     # Otherwise fallback to SQLite
     conn = sqlite3.connect(DB_PATH)
