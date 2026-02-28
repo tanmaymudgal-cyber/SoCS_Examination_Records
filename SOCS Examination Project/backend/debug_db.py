@@ -47,21 +47,24 @@ def debug_connection(provided_url=None):
     try:
         conn = psycopg2.connect(db_url, prepare_threshold=None)
         print("✅ SUCCESS: Connected to PostgreSQL!")
-        cur = conn.cursor()
-        cur.execute("SELECT version();")
-        print(f"DB Version: {cur.fetchone()[0]}")
         
+        # Now try to initialize tables using the app's logic
+        print("Attempting to initialize tables...")
+        os.environ["DATABASE_URL"] = db_url # Ensure app uses this URL
+        
+        from app import init_db
+        init_db()
+        print("✅ SUCCESS: Tables initialized successfully!")
+
+        cur = conn.cursor()
         cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
         tables = cur.fetchall()
-        print(f"Tables found: {[t[0] for t in tables]}")
+        print(f"Final tables in public schema: {[t[0] for t in tables]}")
         conn.close()
     except Exception as e:
-        print(f"❌ CONNECTION FAILED: {str(e)}")
-        if "authentication failed" in str(e).lower():
-            print("\n💡 TIP: 'Password authentication failed' usually means:")
-            print("1. Your password is wrong")
-            print("2. Your password has special characters (#, !, @, etc.) that are NOT URL-encoded.")
-            print("3. You encoded the WHOLE URL instead of just the password.")
+        print(f"❌ ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     # Check if URL passed as argument
