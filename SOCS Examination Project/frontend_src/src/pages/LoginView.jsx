@@ -206,10 +206,7 @@ export default function LoginView({ onLoginSuccess }) {
                                 </button>
                             </form>
 
-                            {/* Default credentials hint */}
-                            <div style={{ marginTop: '16px', padding: '10px 14px', background: 'var(--primary-xlight)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                                <strong>Default credentials:</strong> admin / admin123 &nbsp;|&nbsp; invigilator / invig123 &nbsp;|&nbsp; coordinator / coord123
-                            </div>
+
                         </div>
 
                         <div className="login-footer-note">
