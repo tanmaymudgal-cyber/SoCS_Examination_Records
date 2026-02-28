@@ -234,23 +234,27 @@ def init_db():
         )
     ''')
 
-    # ── Seed default users if table is empty ─────────────────────────────────
-    cur.execute('SELECT COUNT(*) FROM users')
-    if cur.fetchone()[0] == 0:
-        p = "%s" if is_postgres else "?"
-        for uname, pwd, role, email in DEFAULT_USERS:
+    # ── Seed default users if they don't exist ───────────────────────────────
+    p = "%s" if is_postgres else "?"
+    for uname, pwd, role, email in DEFAULT_USERS:
+        # Check if user exists
+        cur.execute(f'SELECT id FROM users WHERE username = {p}', (uname,))
+        row = cur.fetchone()
+        
+        if not row:
+            # Create user if not present
             cur.execute(
                 f'INSERT INTO users (username, password, role, email) VALUES ({p}, {p}, {p}, {p})',
                 (uname, hash_password(pwd), role, email)
             )
-    else:
-        # ── Back-fill emails for existing default users that have none ────────
-        p = "%s" if is_postgres else "?"
-        for uname, _pwd, _role, email in DEFAULT_USERS:
-            # For the main admin, we always update the email if changed to ensure 'forgot password' works
+        else:
+            # User exists. Update email (and password if it's the main admin)
             if uname == os.environ.get("ADMIN_USERNAME", "admin"):
-                cur.execute(f'UPDATE users SET email = {p} WHERE username = {p}', (email, uname))
+                # Also force update password so custom env vars work immediately
+                cur.execute(f'UPDATE users SET email = {p}, password = {p} WHERE username = {p}', 
+                            (email, hash_password(pwd), uname))
             else:
+                # Back-fill email if missing for other defaults
                 if is_postgres:
                     cur.execute(
                         f'UPDATE users SET email = {p} WHERE username = {p} AND (email IS NULL OR email = \'\')',
