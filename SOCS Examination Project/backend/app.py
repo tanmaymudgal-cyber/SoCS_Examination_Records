@@ -118,7 +118,12 @@ SESSION_TIMEOUT_MINUTES = 30
 RESET_TOKEN_EXPIRY_MINUTES = 15
 
 DEFAULT_USERS = [
-    ('admin',       'admin123',  'admin',       'admin@upes.ac.in'),
+    # Initial admin: can be overridden by env vars for custom production setup
+    (os.environ.get("ADMIN_USERNAME", "admin"), 
+     os.environ.get("ADMIN_PASSWORD", "admin123"), 
+     'admin', 
+     os.environ.get("ADMIN_EMAIL", "admin@upes.ac.in")),
+    
     ('invigilator', 'invig123',  'invigilator', 'invigilator@upes.ac.in'),
     ('coordinator', 'coord123',  'coordinator', 'coordinator@upes.ac.in'),
 ]
@@ -242,16 +247,20 @@ def init_db():
         # ── Back-fill emails for existing default users that have none ────────
         p = "%s" if is_postgres else "?"
         for uname, _pwd, _role, email in DEFAULT_USERS:
-            if is_postgres:
-                cur.execute(
-                    f'UPDATE users SET email = {p} WHERE username = {p} AND (email IS NULL OR email = \'\')',
-                    (email, uname)
-                )
+            # For the main admin, we always update the email if changed to ensure 'forgot password' works
+            if uname == os.environ.get("ADMIN_USERNAME", "admin"):
+                cur.execute(f'UPDATE users SET email = {p} WHERE username = {p}', (email, uname))
             else:
-                cur.execute(
-                    f'UPDATE users SET email = {p} WHERE username = {p} AND (email IS NULL OR email = "")',
-                    (email, uname)
-                )
+                if is_postgres:
+                    cur.execute(
+                        f'UPDATE users SET email = {p} WHERE username = {p} AND (email IS NULL OR email = \'\')',
+                        (email, uname)
+                    )
+                else:
+                    cur.execute(
+                        f'UPDATE users SET email = {p} WHERE username = {p} AND (email IS NULL OR email = "")',
+                        (email, uname)
+                    )
 
     conn.commit()
     conn.close()
