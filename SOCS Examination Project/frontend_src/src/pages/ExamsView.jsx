@@ -3,6 +3,8 @@ import { API_BASE, toISODate } from '../hooks/useApi';
 import { SkeletonRows } from '../components/Spinner';
 import Modal from '../components/Modal';
 import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
+import 'flatpickr/dist/themes/airbnb.css';
 
 /* ── Dropdown ── */
 function ActionMenu({ id, onDownload, onAdmin, onDelete }) {
@@ -91,19 +93,26 @@ function ResultCard({ r, onAdmin, onDelete }) {
    MAIN EXAMS VIEW
 ═══════════════════════════════════════════════════════════════ */
 export default function ExamsView({ toast }) {
-  const [records, setRecords]     = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [tab, setTab]             = useState('upcoming');
-  const [search, setSearch]       = useState('');
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('upcoming');
+  const [search, setSearch] = useState('');
   const [pastSearch, setPastSearch] = useState('');
-  const [sort, setSort]           = useState({ field: 'exam_date', desc: false });
-  const [bulkOpen, setBulkOpen]   = useState(false);
-  const [bulkMode, setBulkMode]   = useState('one');
+  const [sort, setSort] = useState({ field: 'exam_date', desc: false });
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState('one');
   const [examDates, setExamDates] = useState([]);
   const [generating, setGenerating] = useState(false);
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteMode, setDeleteMode] = useState('one');
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fpSingle = useRef(null); const fpStart = useRef(null); const fpEnd = useRef(null);
   const fpSingleInst = useRef(null); const fpStartInst = useRef(null); const fpEndInst = useRef(null);
+
+  const fpDelSingle = useRef(null); const fpDelStart = useRef(null); const fpDelEnd = useRef(null);
+  const fpDelSingleInst = useRef(null); const fpDelStartInst = useRef(null); const fpDelEndInst = useRef(null);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -124,28 +133,38 @@ export default function ExamsView({ toast }) {
 
   /* ── Flatpickr ── */
   const dayCreate = useCallback((_, __, ___, dayElem) => {
-    const d = dayElem.dateObj.toISOString().split('T')[0];
-    if (examDates.includes(d)) {
+    const y = dayElem.dateObj.getFullYear();
+    const m = String(dayElem.dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dayElem.dateObj.getDate()).padStart(2, '0');
+    const isoDate = `${y}-${m}-${d}`;
+    if (examDates.includes(isoDate)) {
       dayElem.classList.add('exam-day');
       dayElem.title = '📅 Exam Scheduled';
     }
   }, [examDates]);
 
   useEffect(() => {
-    if (!bulkOpen) return;
+    if (!bulkOpen && !deleteOpen) return;
     const cfg = { dateFormat: 'Y-m-d', onDayCreate: dayCreate };
-    if (!fpSingleInst.current && fpSingle.current) fpSingleInst.current = flatpickr(fpSingle.current, cfg);
-    if (!fpStartInst.current  && fpStart.current)  fpStartInst.current  = flatpickr(fpStart.current, cfg);
-    if (!fpEndInst.current    && fpEnd.current)     fpEndInst.current    = flatpickr(fpEnd.current, cfg);
-  }, [bulkOpen, dayCreate]);
+    if (bulkOpen) {
+      if (!fpSingleInst.current && fpSingle.current) fpSingleInst.current = flatpickr(fpSingle.current, cfg);
+      if (!fpStartInst.current && fpStart.current) fpStartInst.current = flatpickr(fpStart.current, cfg);
+      if (!fpEndInst.current && fpEnd.current) fpEndInst.current = flatpickr(fpEnd.current, cfg);
+    }
+    if (deleteOpen) {
+      if (!fpDelSingleInst.current && fpDelSingle.current) fpDelSingleInst.current = flatpickr(fpDelSingle.current, cfg);
+      if (!fpDelStartInst.current && fpDelStart.current) fpDelStartInst.current = flatpickr(fpDelStart.current, cfg);
+      if (!fpDelEndInst.current && fpDelEnd.current) fpDelEndInst.current = flatpickr(fpDelEnd.current, cfg);
+    }
+  }, [bulkOpen, deleteOpen, dayCreate]);
 
   useEffect(() => {
-    if (!bulkOpen) return;
+    if (!bulkOpen && !deleteOpen) return;
     fetch(`${API_BASE()}/exam-dates`)
       .then(r => r.json())
-      .then(setExamDates)
-      .catch(() => {});
-  }, [bulkOpen]);
+      .then(dates => setExamDates(dates.map(toISODate)))
+      .catch(() => { });
+  }, [bulkOpen, deleteOpen]);
 
   /* ── Actions ── */
   const handleDownloadPDF = async (id) => {
@@ -160,7 +179,16 @@ export default function ExamsView({ toast }) {
     }
   };
 
-  const handleAdminView = (id) => window.open(`admin.html?exam_id=${id}`, '_blank');
+  const [reportOpen, setReportOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+
+  const handleAdminView = (id) => {
+    const rec = records.find(r => r.id === id);
+    if (rec) {
+      setSelectedReport(rec);
+      setReportOpen(true);
+    }
+  };
 
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this session?')) return;
@@ -194,6 +222,37 @@ export default function ExamsView({ toast }) {
       toast.error('Generation Failed', e.message);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm('Are you sure you want to permanently delete these sessions? This action cannot be undone.')) return;
+
+    let url = `${API_BASE()}/examinations/bulk-delete`;
+    if (deleteMode === 'one') {
+      const d = fpDelSingleInst.current?.selectedDates[0];
+      if (!d) { toast.warning('Date Required', 'Please select a date.'); return; }
+      url += `?start_date=${d.toISOString().split('T')[0]}`;
+    } else {
+      const s = fpDelStartInst.current?.selectedDates[0];
+      const e = fpDelEndInst.current?.selectedDates[0];
+      if (!s || !e) { toast.warning('Dates Required', 'Please select start and end dates.'); return; }
+      url += `?start_date=${s.toISOString().split('T')[0]}&end_date=${e.toISOString().split('T')[0]}`;
+    }
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(url, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Deletion failed.');
+
+      toast.success('Sessions Deleted', data.message);
+      setDeleteOpen(false);
+      loadRecords();
+    } catch (e) {
+      toast.error('Deletion Failed', e.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -232,9 +291,10 @@ export default function ExamsView({ toast }) {
         </div>
         <div className="header-actions">
           <button className="btn btn-pdf" onClick={() => setBulkOpen(true)}>📄 Bulk Labels</button>
+          <button className="btn btn-ghost" style={{ color: 'var(--danger)' }} onClick={() => setDeleteOpen(true)}>🗑 Bulk Delete</button>
           <button className="btn btn-outline" onClick={() => {
-            fetch(`${API_BASE()}/template`).then(r => r.blob()).then(b => {
-              const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'template.xlsx'; a.click();
+            fetch(`${API_BASE()}/download-template`).then(r => r.blob()).then(b => {
+              const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'SOCS_Exam_Template.xlsx'; a.click();
             }).catch(() => toast.error('Error', 'Template not available.'));
           }}>⬇ Template</button>
           <button className="btn btn-ghost btn-sm" onClick={loadRecords} title="Refresh">🔄</button>
@@ -357,6 +417,74 @@ export default function ExamsView({ toast }) {
         <button className="btn btn-primary btn-lg" onClick={handleBulkDownload} disabled={generating}>
           {generating ? <><div className="spinner spinner-sm" /> Generating…</> : 'Generate & Download PDF'}
         </button>
+      </Modal>
+
+      {/* ── BULK DELETE MODAL ── */}
+      <Modal show={deleteOpen} onClose={() => setDeleteOpen(false)} title="🗑 Bulk Delete Sessions">
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '12px', borderRadius: '8px', marginBottom: '16px', color: '#991b1b', fontSize: '0.85rem' }}>
+          <strong>Warning:</strong> Deleting sessions will permanently remove associated metrics and labels.
+        </div>
+        <div className="toggle-group">
+          <button className={`toggle-btn${deleteMode === 'one' ? ' active' : ''}`} onClick={() => setDeleteMode('one')}>One Day</button>
+          <button className={`toggle-btn${deleteMode === 'range' ? ' active' : ''}`} onClick={() => setDeleteMode('range')}>Date Range</button>
+        </div>
+
+        {deleteMode === 'one' && (
+          <div className="input-row">
+            <label>Select Date</label>
+            <input ref={fpDelSingle} className="modal-input" placeholder="Select a date from the calendar" readOnly />
+          </div>
+        )}
+        {deleteMode === 'range' && (
+          <div className="input-row">
+            <div className="dual-input">
+              <div><label>From</label><input ref={fpDelStart} className="modal-input" placeholder="Start Date" readOnly /></div>
+              <div><label>Till</label><input ref={fpDelEnd} className="modal-input" placeholder="End Date" readOnly /></div>
+            </div>
+          </div>
+        )}
+
+        <button className="btn btn-lg" style={{ width: '100%', background: 'var(--danger)', color: 'white' }} onClick={handleBulkDelete} disabled={isDeleting}>
+          {isDeleting ? <><div className="spinner spinner-sm" /> Deleting…</> : 'Permanently Delete Sessions'}
+        </button>
+      </Modal>
+
+      {/* ── REPORT MODAL ── */}
+      <Modal show={reportOpen} onClose={() => setReportOpen(false)} title="📋 Session Report">
+        {selectedReport && (
+          <div className="report-content" style={{ textAlign: 'left' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--primary)' }}>{selectedReport.course_name}</h3>
+            <table style={{ width: '100%', marginBottom: '20px', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '8px 0', fontWeight: 600 }}>Date & Time</td><td style={{ textAlign: 'right' }}>{selectedReport.exam_date} @ {selectedReport.exam_time}</td></tr>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '8px 0', fontWeight: 600 }}>Room</td><td style={{ textAlign: 'right' }}>{selectedReport.room_number}</td></tr>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '8px 0', fontWeight: 600 }}>Batch</td><td style={{ textAlign: 'right' }}>{selectedReport.program_batch}</td></tr>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '8px 0', fontWeight: 600 }}>Evaluator</td><td style={{ textAlign: 'right' }}>{selectedReport.evaluator_name}</td></tr>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '8px 0', fontWeight: 600 }}>Expected Students</td><td style={{ textAlign: 'right' }}>{selectedReport.num_students}</td></tr>
+              </tbody>
+            </table>
+
+            <h4 style={{ margin: '0 0 12px 0', textTransform: 'uppercase', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Collection Metrics</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+              <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success)' }}>{selectedReport.answer_sheets ?? '-'}</div>
+                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Sheets</div>
+              </div>
+              <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--warning)' }}>{selectedReport.absent_count ?? '-'}</div>
+                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Absent</div>
+              </div>
+              <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger)' }}>{selectedReport.ufm_count ?? '-'}</div>
+                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>UFM</div>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              {selectedReport.sync_at ? `Data verified by ${selectedReport.submitted_by} on ${new Date(selectedReport.sync_at).toLocaleString()}` : "Data not yet synchronized from invigilator terminal."}
+            </p>
+          </div>
+        )}
       </Modal>
     </div>
   );

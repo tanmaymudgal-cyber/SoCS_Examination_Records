@@ -631,6 +631,57 @@ def upload_excel():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def standardize_date(d_str):
+    if not d_str: return ''
+    d_str = str(d_str).strip().replace('/', '-')
+    parts = d_str.split('-')
+    if len(parts) == 3:
+        if len(parts[0]) == 4: return d_str
+        return f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+    return d_str
+
+@app.route('/api/examinations/bulk-delete', methods=['DELETE'])
+def bulk_delete_examinations():
+    """
+    Delete examinations by a single date or date range.
+    Uses Python-side date standardization to safely handle unformatted DB strings.
+    """
+    try:
+        start_date = request.args.get('start_date')
+        end_date   = request.args.get('end_date')
+        if not start_date:
+            return jsonify({'error': 'start_date is required'}), 400
+
+        conn = get_conn()
+        cur  = conn.cursor()
+        
+        cur.execute('SELECT id, exam_date FROM examinations')
+        to_delete = []
+        for row in cur.fetchall():
+            eid, edate = row[0], standardize_date(row[1])
+            if start_date and end_date:
+                if start_date <= edate <= end_date:
+                    to_delete.append(eid)
+            else:
+                if edate == start_date:
+                    to_delete.append(eid)
+                    
+        if not to_delete:
+            conn.close()
+            return jsonify({'message': '0 sessions deleted successfully.', 'count': 0}), 200
+            
+        p = get_placeholder()
+        fmt_ids = ",".join([p]*len(to_delete))
+        cur.execute(f'DELETE FROM examinations WHERE id IN ({fmt_ids})', to_delete)
+        deleted_count = cur.rowcount
+        conn.commit()
+        conn.close()
+        
+        log_activity("BULK_DELETE", f"{deleted_count} exam sessions deleted.")
+        return jsonify({'message': f'{deleted_count} sessions deleted successfully.', 'count': deleted_count}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/examinations', methods=['GET'])
 def get_examinations():
