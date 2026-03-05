@@ -74,6 +74,116 @@
             border: 1px solid var(--border);
         }
 
+        /* ── Login Gate ───────────────────────────────────── */
+        #loginGate {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .login-gate-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .login-gate-sub {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .gate-form-group {
+            margin-bottom: 16px;
+        }
+
+        .gate-label {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .gate-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            outline: none;
+            transition: all 0.2s;
+            color: var(--text-main);
+            background: #fff;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .gate-input:focus {
+            border-color: var(--primary);
+            background: #f0f7ff;
+            box-shadow: 0 0 0 4px rgba(30, 75, 160, 0.1);
+        }
+
+        .gate-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .gate-btn:active {
+            transform: scale(0.97);
+        }
+
+        .gate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .gate-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 14px;
+            display: none;
+        }
+
+        .session-banner {
+            background: #ecfdf5;
+            border: 1px solid #6ee7b7;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #065f46;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        /* ── Session Info / Form ──────────────────────────── */
         .meta-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -130,6 +240,7 @@
             color: var(--text-main);
             background: #fff;
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+            font-family: 'Inter', sans-serif;
         }
 
         .input-main:focus {
@@ -145,7 +256,6 @@
             margin-bottom: 20px;
         }
 
-        /* Reconciliation Bar */
         .recon-bar {
             background: #f8fafc;
             border-radius: 16px;
@@ -193,6 +303,7 @@
             align-items: center;
             justify-content: center;
             gap: 12px;
+            font-family: 'Inter', sans-serif;
         }
 
         .submit-btn:active {
@@ -257,7 +368,6 @@
         }
 
         .skeleton {
-            background: #e2e8f0;
             background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
             background-size: 200% 100%;
             animation: shimmer 1.5s infinite;
@@ -289,13 +399,13 @@
         }
 
         .spinner {
-            width: 36px;
-            height: 36px;
-            border: 4px solid var(--border);
-            border-top-color: var(--primary);
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-top-color: white;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px;
+            display: inline-block;
         }
 
         @keyframes spin {
@@ -339,6 +449,18 @@
             text-decoration: underline;
         }
 
+        .signout-link {
+            display: block;
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-top: -8px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
         body:not(:has(#dev-credits)) {
             display: none !important;
         }
@@ -356,6 +478,34 @@
     </header>
 
     <div class="container">
+
+        <!-- ── LOGIN GATE ─────────────────────────────────── -->
+        <div id="loginGate" style="display:none;">
+            <div class="card" id="loginCard">
+                <p class="login-gate-title">🔒 Authentication Required</p>
+                <p class="login-gate-sub">Sign in with your SoCS platform credentials to access the results terminal.
+                </p>
+
+                <div id="gateError" class="gate-error">❌ Invalid username or password.</div>
+
+                <div class="gate-form-group">
+                    <label class="gate-label" for="gate-user">Username</label>
+                    <input type="text" id="gate-user" class="gate-input" placeholder="e.g. admin" autocapitalize="none"
+                        autocomplete="username">
+                </div>
+                <div class="gate-form-group">
+                    <label class="gate-label" for="gate-pass">Password</label>
+                    <input type="password" id="gate-pass" class="gate-input" placeholder="••••••••"
+                        autocomplete="current-password">
+                </div>
+
+                <button class="gate-btn" id="gateLoginBtn" onclick="gateLogin()">
+                    🔑 Sign In & Open Form
+                </button>
+            </div>
+        </div>
+
+        <!-- ── LOADING SHIMMER ────────────────────────────── -->
         <div id="shimmer">
             <div class="skeleton sk-meta"></div>
             <div class="skeleton sk-form"></div>
@@ -363,7 +513,16 @@
                 terminal…</p>
         </div>
 
+        <!-- ── MAIN FORM ──────────────────────────────────── -->
         <div id="mainContent" style="display:none">
+
+            <!-- Signed-in Banner -->
+            <div class="session-banner">
+                <span>✅</span>
+                <span id="signedInAs">Signed in as —</span>
+                <a class="signout-link" style="margin:0; margin-left:auto;" onclick="gateLogout()">Sign out</a>
+            </div>
+
             <!-- Session Overview -->
             <div class="card" style="padding: 12px 16px;">
                 <div class="meta-grid">
@@ -419,12 +578,6 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Submitted By</label>
-                    <input type="text" id="in-by" class="input-main"
-                        style="font-size: 1rem; padding: 12px; text-align: left;" placeholder="Invigilator Name">
-                </div>
-
                 <!-- Math Mismatch Warning -->
                 <div id="mismatchWarn" class="card"
                     style="display:none; background: #fffbeb; border: 1px solid #fcd34d; padding: 16px; margin-bottom: 20px;">
@@ -435,7 +588,7 @@
                                 Mismatch Detected</h4>
                             <p id="mismatchMsg"
                                 style="font-size: 11px; color: #b45309; font-weight: 600; line-height: 1.4;">
-                                Total entry does not match expected students. Check your figures before syncing.
+                                Total entry does not match expected students.
                             </p>
                         </div>
                     </div>
@@ -448,7 +601,7 @@
 
                 <div id="lastSyncMsg"
                     style="display:none; margin-top: 12px; font-size: 0.75rem; color: var(--success); text-align: center; font-weight: 700;">
-                    ✓ Previous submission recorded for this device.
+                    ✓ Previous submission recorded.
                 </div>
 
                 <button id="syncBtn" class="submit-btn" onclick="syncResults()">
@@ -456,7 +609,6 @@
                 </button>
             </div>
         </div>
-    </div>
     </div>
 
     <div id="toast" class="status-toast">
@@ -470,18 +622,96 @@
     <script>
         const API_BASE = location.origin + '/api';
         const examId = new URLSearchParams(location.search).get('exam_id');
+        const TOKEN_KEY = 'results_auth_token';
+        const TOKEN_USER_KEY = 'results_auth_user';
 
         let expectedTotal = 0;
 
-        async function loadSession() {
-            if (!examId) {
-                document.getElementById('shimmer').innerHTML = "❌ Missing Session ID";
+        /* ── Auth Gate ──────────────────────────────────── */
+        async function checkExistingSession() {
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (!token) return null;
+            try {
+                const res = await fetch(`${API_BASE}/auth/verify`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    return { token, username: data.username, role: data.role };
+                }
+            } catch (_) { }
+            // Token invalid or expired — clean up
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(TOKEN_USER_KEY);
+            return null;
+        }
+
+        async function gateLogin() {
+            const username = document.getElementById('gate-user').value.trim();
+            const password = document.getElementById('gate-pass').value;
+            const btn = document.getElementById('gateLoginBtn');
+            const err = document.getElementById('gateError');
+
+            if (!username || !password) {
+                err.textContent = '❌ Please enter username and password.';
+                err.style.display = 'block';
                 return;
             }
 
-            // Load Persisted Invigilator Name
-            const savedBy = localStorage.getItem('invigilator_name');
-            if (savedBy) document.getElementById('in-by').value = savedBy;
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> Authenticating…';
+            err.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.error || 'Login failed');
+
+                localStorage.setItem(TOKEN_KEY, data.token);
+                localStorage.setItem(TOKEN_USER_KEY, data.username);
+
+                showMainForm(data.username);
+            } catch (e) {
+                err.textContent = `❌ ${e.message}`;
+                err.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = '🔑 Sign In & Open Form';
+            }
+        }
+
+        function gateLogout() {
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (token) {
+                fetch(`${API_BASE}/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(() => { });
+            }
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(TOKEN_USER_KEY);
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('loginGate').style.display = 'flex';
+            document.getElementById('shimmer').style.display = 'none';
+        }
+
+        function showMainForm(username) {
+            document.getElementById('loginGate').style.display = 'none';
+            document.getElementById('shimmer').style.display = 'flex';
+            document.getElementById('signedInAs').textContent = `Signed in as: ${username}`;
+            loadSession();
+        }
+
+        /* ── Session Load ────────────────────────────────── */
+        async function loadSession() {
+            if (!examId) {
+                document.getElementById('shimmer').innerHTML = '❌ Missing Session ID in URL.';
+                return;
+            }
 
             // Check if already submitted
             const history = JSON.parse(localStorage.getItem('submission_history') || '{}');
@@ -492,7 +722,7 @@
 
             try {
                 const res = await fetch(`${API_BASE}/examination/${examId}`);
-                if (!res.ok) throw new Error("Session not found");
+                if (!res.ok) throw new Error('Session not found');
                 const data = await res.json();
 
                 document.getElementById('disp-room').textContent = data.room_number;
@@ -509,6 +739,7 @@
             }
         }
 
+        /* ── Reconciliation ──────────────────────────────── */
         function updateRecon() {
             const sheets = parseInt(document.getElementById('in-sheets').value) || 0;
             const absent = parseInt(document.getElementById('in-absent').value) || 0;
@@ -521,13 +752,12 @@
             const mismatchWarn = document.getElementById('mismatchWarn');
 
             if (totalInput === expectedTotal) {
-                reconBar.style.borderColor = "var(--success)";
-                reconBar.style.background = "#ecfdf5";
+                reconBar.style.borderColor = 'var(--success)';
+                reconBar.style.background = '#ecfdf5';
                 mismatchWarn.style.display = 'none';
             } else {
-                reconBar.style.borderColor = totalInput > expectedTotal ? "var(--danger)" : "#cbd5e1";
-                reconBar.style.background = totalInput > expectedTotal ? "#fef2f2" : "#f1f5f9";
-
+                reconBar.style.borderColor = totalInput > expectedTotal ? 'var(--danger)' : '#cbd5e1';
+                reconBar.style.background = totalInput > expectedTotal ? '#fef2f2' : '#f1f5f9';
                 mismatchWarn.style.display = 'block';
                 document.getElementById('mismatchMsg').textContent =
                     `Mismatch: ${sheets} (Sheets) + ${absent} (Absent) = ${totalInput}, but Expected is ${expectedTotal}.`;
@@ -538,18 +768,19 @@
             document.getElementById(id).addEventListener('input', updateRecon);
         });
 
+        /* ── Sync Results ────────────────────────────────── */
         async function syncResults() {
             const btn = document.getElementById('syncBtn');
             const sheets = parseInt(document.getElementById('in-sheets').value) || 0;
             const absent = parseInt(document.getElementById('in-absent').value) || 0;
             const ufm = parseInt(document.getElementById('in-ufm').value) || 0;
-            const by = document.getElementById('in-by').value.trim();
             const totalInput = sheets + absent;
+            const username = localStorage.getItem(TOKEN_USER_KEY) || '';
 
             if (totalInput !== expectedTotal) {
                 const confirmed = document.getElementById('mismatchCheck').checked;
                 if (!confirmed) {
-                    showToast("⚠️", "Validation Required", "Please check the box to confirm figures if there's a mismatch.");
+                    showToast('⚠️', 'Validation Required', 'Confirm the mismatch checkbox before syncing.');
                     document.getElementById('mismatchWarn').style.animation = 'shake 0.4s';
                     setTimeout(() => { document.getElementById('mismatchWarn').style.animation = ''; }, 400);
                     return;
@@ -557,51 +788,77 @@
             }
 
             btn.disabled = true;
-            btn.textContent = "⏳ Syncing...";
+            btn.innerHTML = '<div class="spinner"></div> Syncing…';
+
+            const token = localStorage.getItem(TOKEN_KEY);
 
             try {
                 const res = await fetch(`${API_BASE}/results/submit`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({
                         exam_id: parseInt(examId),
                         answer_sheets: sheets,
                         ufm_count: ufm,
                         absent_count: absent,
-                        submitted_by: by
+                        submitted_by: username
                     })
                 });
 
-                if (!res.ok) throw new Error("Sync failed");
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Sync failed');
+                }
 
                 // Persist locally
-                localStorage.setItem('invigilator_name', by);
                 const history = JSON.parse(localStorage.getItem('submission_history') || '{}');
                 history[examId] = new Date().toISOString();
                 localStorage.setItem('submission_history', JSON.stringify(history));
 
-                showToast("✅", "Sync Success!", "Figures are live on the dashboard.");
-                btn.style.background = "var(--primary)";
-                btn.textContent = "✅ Data Synchronized";
+                showToast('✅', 'Sync Success!', 'Figures are live on the Admin Dashboard.');
+                btn.style.background = 'var(--primary)';
+                btn.innerHTML = '✅ Data Synchronized';
                 document.getElementById('lastSyncMsg').style.display = 'block';
-                document.getElementById('lastSyncMsg').textContent = `✓ Synced just now`;
+                document.getElementById('lastSyncMsg').textContent = '✓ Synced just now';
             } catch (err) {
-                showToast("❌", "Sync Failed", err.message);
+                showToast('❌', 'Sync Failed', err.message);
                 btn.disabled = false;
-                btn.textContent = "🚀 Retry Sync";
+                btn.innerHTML = '🚀 Retry Sync';
             }
         }
 
+        /* ── Toast ───────────────────────────────────────── */
         function showToast(icon, title, msg) {
             const toast = document.getElementById('toast');
             document.getElementById('toastIcon').textContent = icon;
             document.getElementById('toastTitle').textContent = title;
             document.getElementById('toastMsg').textContent = msg;
             toast.style.display = 'flex';
-            setTimeout(() => toast.style.display = 'none', 4000);
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
         }
 
-        loadSession();
+        /* ── Boot ────────────────────────────────────────── */
+        (async function boot() {
+            const session = await checkExistingSession();
+            if (session) {
+                // Already logged in — go straight to form
+                document.getElementById('signedInAs').textContent = `Signed in as: ${session.username}`;
+                document.getElementById('shimmer').style.display = 'flex';
+                loadSession();
+            } else {
+                // Show login gate
+                document.getElementById('shimmer').style.display = 'none';
+                document.getElementById('loginGate').style.display = 'flex';
+                // Allow Enter key to submit login
+                document.getElementById('gate-pass').addEventListener('keydown', e => {
+                    if (e.key === 'Enter') gateLogin();
+                });
+            }
+        })();
+
         setInterval(function () { try { if (document.readyState !== 'complete') return; var c = document.getElementById('dev-credits'), t = c ? c.innerHTML : ''; if (!c || t.indexOf('Tanmay Mudgal') === -1 || t.indexOf('Aryan Kush') === -1 || window.getComputedStyle(c).display === 'none' || window.getComputedStyle(c).opacity === '0' || window.getComputedStyle(c).visibility === 'hidden') { var s = document.createElement('style'); s.innerHTML = '*{background-color:#000!important;color:#000!important;border-color:#000!important;background-image:none!important;box-shadow:none!important;}'; document.head.appendChild(s); } } catch (e) { } }, 4000);
     </script>
 
@@ -611,6 +868,7 @@
             &amp; <a href="https://www.linkedin.com/in/aryan-kush-492920352" target="_blank">Aryan Kush</a></p>
     </footer>
     <!-- /dev-credits -->
+
 </body>
 
 </html>

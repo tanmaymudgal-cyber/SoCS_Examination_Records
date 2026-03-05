@@ -3,12 +3,21 @@ import React, { useEffect, useRef } from 'react';
 export default function Modal({ show, onClose, title, children }) {
   const overlayRef = useRef(null);
 
-  // Close on Escape key
+  // Scroll Lock and Escape key
   useEffect(() => {
     if (!show) return;
+
+    // Lock scroll
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+
+    return () => {
+      document.body.style.overflow = originalStyle;
+      window.removeEventListener('keydown', handler);
+    };
   }, [show, onClose]);
 
   if (!show) return null;

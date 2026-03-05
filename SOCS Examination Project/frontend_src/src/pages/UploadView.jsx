@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { API_BASE } from '../hooks/useApi';
 
 export default function UploadView({ toast }) {
-  const [file, setFile]         = useState(null);
+  const [file, setFile] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
@@ -27,8 +27,13 @@ export default function UploadView({ toast }) {
     setUploading(true);
     const fd = new FormData();
     fd.append('file', file);
+    const token = localStorage.getItem('auth_token') || '';
     try {
-      const res = await fetch(`${API_BASE()}/upload-excel`, { method: 'POST', body: fd });
+      const res = await fetch(`${API_BASE()}/upload-excel`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: fd,
+      });
       if (res.ok) {
         toast.success('Upload Complete', `"${file.name}" was processed successfully.`);
         setFile(null);
@@ -109,16 +114,16 @@ export default function UploadView({ toast }) {
               </thead>
               <tbody>
                 {[
-                  ['Exam Title',         'SoCS Mid Sem Exam March 2025'],
-                  ['Room Number',        '2001'],
-                  ['Date of Exam',       '05/03/2025'],
-                  ['Time',               '02:00 PM - 04:00 PM'],
-                  ['Program / Batch',    'BT-CSE-II-B1'],
-                  ['Semester',           '2'],
-                  ['Course Name',        'Computer Organization and Architecture'],
-                  ['Course Code',        'CSEG1032'],
-                  ['Name of Evaluator',  'Rajib Banerjee'],
-                  ['No. of Students',    '29'],
+                  ['Exam Title', 'SoCS Mid Sem Exam March 2025'],
+                  ['Room Number', '2001'],
+                  ['Date of Exam', '05/03/2025'],
+                  ['Time', '02:00 PM - 04:00 PM'],
+                  ['Program / Batch', 'BT-CSE-II-B1'],
+                  ['Semester', '2'],
+                  ['Course Name', 'Computer Organization and Architecture'],
+                  ['Course Code', 'CSEG1032'],
+                  ['Name of Evaluator', 'Rajib Banerjee'],
+                  ['No. of Students', '29'],
                 ].map(([col, ex]) => (
                   <tr key={col}>
                     <td><code>{col}</code></td>

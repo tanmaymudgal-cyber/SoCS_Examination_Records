@@ -167,7 +167,7 @@ def init_db():
     cur.execute(f'''
         CREATE TABLE IF NOT EXISTS exam_results (
             id               {id_type},
-            exam_id          INTEGER NOT NULL,
+            exam_id          INTEGER NOT NULL UNIQUE,
             answer_sheets    INTEGER DEFAULT 0,
             ufm_count        INTEGER DEFAULT 0,
             absent_count     INTEGER DEFAULT 0,
@@ -177,6 +177,38 @@ def init_db():
             FOREIGN KEY (exam_id) REFERENCES examinations(id) ON DELETE CASCADE
         )
     ''')
+
+    # ── Migration: enforce UNIQUE on exam_id if table already existed ─────────
+    # For PostgreSQL: check if the unique constraint exists, add if not.
+    # For SQLite: we can't ALTER a constraint, but we can recreate the dedup via DELETE.
+    if is_postgres:
+        cur.execute("""
+            SELECT 1 FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name
+            WHERE tc.table_name = 'exam_results'
+              AND tc.constraint_type = 'UNIQUE'
+              AND kcu.column_name = 'exam_id'
+        """)
+        if not cur.fetchone():
+            # Remove duplicates first (keep latest submitted_at per exam_id)
+            cur.execute("""
+                DELETE FROM exam_results
+                WHERE id NOT IN (
+                    SELECT DISTINCT ON (exam_id) id
+                    FROM exam_results
+                    ORDER BY exam_id, submitted_at DESC
+                )
+            """)
+            cur.execute('ALTER TABLE exam_results ADD CONSTRAINT exam_results_exam_id_unique UNIQUE (exam_id)')
+    else:
+        # SQLite: deduplicate by keeping the latest row per exam_id
+        cur.execute("""
+            DELETE FROM exam_results
+            WHERE id NOT IN (
+                SELECT MAX(id) FROM exam_results GROUP BY exam_id
+            )
+        """)
 
     # ── activity_logs table ──────────────────────────────────────────────────
     cur.execute(f'''
@@ -557,7 +589,11 @@ def download_template():
 
 @app.route('/api/upload-excel', methods=['POST'])
 def upload_excel():
-    """Upload Excel and insert exam session rows."""
+    """Upload Excel and insert exam session rows. Requires authentication."""
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized. Please sign in first.'}), 401
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
@@ -685,17 +721,39 @@ def bulk_delete_examinations():
 
 @app.route('/api/examinations', methods=['GET'])
 def get_examinations():
+    """List all exams joined with their latest result row. Uses DISTINCT ON (postgres) or
+    a subquery (sqlite) to guarantee at most one result row per exam."""
     try:
         conn = get_conn()
         cur  = conn.cursor()
-        # Join with results to get sheets/ufm/absent count in one go
-        # Use r.submitted_at as sync_at
-        query = """
-            SELECT e.*, r.answer_sheets, r.ufm_count, r.absent_count, r.remarks, r.submitted_by, r.submitted_at as sync_at
-            FROM examinations e
-            LEFT JOIN exam_results r ON e.id = r.exam_id
-            ORDER BY e.exam_date DESC, e.exam_time DESC
-        """
+
+        db_url = os.environ.get("DATABASE_URL", "")
+        is_pg  = db_url.startswith("postgres://") or db_url.startswith("postgresql://")
+
+        if is_pg:
+            # DISTINCT ON guarantees one row per exam (latest by submitted_at)
+            query = """
+                SELECT e.*,
+                       r.answer_sheets, r.ufm_count, r.absent_count,
+                       r.remarks, r.submitted_by, r.submitted_at AS sync_at
+                FROM examinations e
+                LEFT JOIN exam_results r ON r.exam_id = e.id
+                ORDER BY e.exam_date DESC, e.exam_time DESC
+            """
+        else:
+            # SQLite: join against a subquery that picks the single (max-id) result per exam
+            query = """
+                SELECT e.*,
+                       r.answer_sheets, r.ufm_count, r.absent_count,
+                       r.remarks, r.submitted_by, r.submitted_at AS sync_at
+                FROM examinations e
+                LEFT JOIN (
+                    SELECT * FROM exam_results
+                    WHERE id IN (SELECT MAX(id) FROM exam_results GROUP BY exam_id)
+                ) r ON r.exam_id = e.id
+                ORDER BY e.exam_date DESC, e.exam_time DESC
+            """
+
         cur.execute(query)
         rows = cur.fetchall()
         conn.close()
@@ -706,10 +764,18 @@ def get_examinations():
 
 @app.route('/api/examination/<int:exam_id>', methods=['GET'])
 def get_examination(exam_id):
+    """Single exam including its results (if submitted). Returns all 18 columns for row_to_exam."""
     try:
+        p = get_placeholder()
         conn = get_conn()
         cur  = conn.cursor()
-        cur.execute('SELECT * FROM examinations WHERE id = ?', (exam_id,))
+        cur.execute(f'''
+            SELECT e.*, r.answer_sheets, r.ufm_count, r.absent_count,
+                   r.remarks, r.submitted_by, r.submitted_at as sync_at
+            FROM examinations e
+            LEFT JOIN exam_results r ON r.exam_id = e.id
+            WHERE e.id = {p}
+        ''', (exam_id,))
         row = cur.fetchone()
         conn.close()
         if not row:
@@ -721,6 +787,10 @@ def get_examination(exam_id):
 
 @app.route('/api/examination/<int:exam_id>', methods=['DELETE'])
 def delete_examination(exam_id):
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized. Please sign in first.'}), 401
     try:
         p = get_placeholder()
         conn = get_conn()
@@ -747,7 +817,13 @@ def submit_results():
         "remarks":       <str>  (optional)
         "submitted_by":  <str>  (optional)
     }
+    Requires a valid Bearer token (same auth as the main platform).
     """
+    # ── Require authentication ───────────────────────────────────────────────
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized. Please sign in first.'}), 401
     try:
         data = request.get_json(force=True)
         if not data:
@@ -773,7 +849,7 @@ def submit_results():
 
         p = get_placeholder()
         # Note: Postgres doesn't have INSERT OR REPLACE, we use ON CONFLICT
-        is_postgres = os.environ.get("DATABASE_URL") and ("postgres://" in os.environ.get("DATABASE_URL") or "postgresql://" in os.environ.get("DATABASE_URL"))
+        is_postgres = (p == '%s')
         
         if is_postgres:
             cur.execute(f'''
@@ -788,11 +864,21 @@ def submit_results():
                     submitted_by = EXCLUDED.submitted_by
             ''', (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by))
         else:
-            cur.execute(f'''
-                INSERT OR REPLACE INTO exam_results
-                    (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by)
-                VALUES ({p}, {p}, {p}, {p}, {p}, {p})
-            ''', (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by))
+            # Fallback for SQLite to safely update without relying on UNIQUE constraint existing
+            cur.execute(f'SELECT id FROM exam_results WHERE exam_id = {p}', (exam_id,))
+            existing = cur.fetchone()
+            if existing:
+                cur.execute(f'''
+                    UPDATE exam_results
+                    SET answer_sheets = {p}, ufm_count = {p}, absent_count = {p}, remarks = {p}, submitted_by = {p}, submitted_at = CURRENT_TIMESTAMP
+                    WHERE exam_id = {p}
+                ''', (answer_sheets, ufm_count, absent_count, remarks, submitted_by, exam_id))
+            else:
+                cur.execute(f'''
+                    INSERT INTO exam_results
+                        (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by)
+                    VALUES ({p}, {p}, {p}, {p}, {p}, {p})
+                ''', (exam_id, answer_sheets, ufm_count, absent_count, remarks, submitted_by))
         conn.commit()
         new_id = cur.lastrowid
         conn.close()
@@ -950,6 +1036,10 @@ def draw_label(pdf, exam, x, y, w, h, admin_url, input_url):
 @app.route('/api/generate-pdf/<int:exam_id>', methods=['GET'])
 def generate_pdf(exam_id):
     """Generate ONE PDF for a single exam session (Single Label)."""
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized. Please sign in first.'}), 401
     try:
         p = get_placeholder()
         conn = get_conn()
@@ -1000,6 +1090,9 @@ def generate_bulk_pdf():
     Generate a multipage PDF containing examinations.
     Query parameters: start_date, end_date (optional)
     """
+    token = _get_token_from_header()
+    if not _get_session(token):
+        return jsonify({'error': 'Unauthorized'}), 401
     try:
         start_date = request.args.get('start_date')
         end_date   = request.args.get('end_date')
@@ -1007,14 +1100,15 @@ def generate_bulk_pdf():
         conn = get_conn()
         cur  = conn.cursor()
         
+        p = get_placeholder()
         query = 'SELECT * FROM examinations'
         params = []
         
         if start_date and end_date:
-            query += ' WHERE exam_date BETWEEN ? AND ?'
+            query += f' WHERE exam_date BETWEEN {p} AND {p}'
             params = [start_date, end_date]
         elif start_date:
-            query += ' WHERE exam_date = ?'
+            query += f' WHERE exam_date = {p}'
             params = [start_date]
             
         query += ' ORDER BY exam_date ASC, room_number ASC'
@@ -1070,9 +1164,45 @@ def generate_bulk_pdf():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/examinations/bulk-delete', methods=['DELETE'])
+def bulk_delete_examinations():
+    """Delete multiple examinations. Requires Auth."""
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        start_date = request.args.get('start_date')
+        end_date   = request.args.get('end_date')
+        if not start_date:
+            return jsonify({'error': 'Missing date parameter'}), 400
+
+        p = get_placeholder()
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        if end_date:
+            cur.execute(f"DELETE FROM examinations WHERE exam_date BETWEEN {p} AND {p}", (start_date, end_date))
+        else:
+            cur.execute(f"DELETE FROM examinations WHERE exam_date = {p}", (start_date,))
+            
+        deleted = cur.rowcount
+        conn.commit()
+        conn.close()
+
+        log_activity("BULK_DELETE", f"Deleted {deleted} exams from {start_date} to {end_date or start_date}")
+        return jsonify({'message': f'Successfully deleted {deleted} sessions.'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     """Aggregate statistics for the Insights dashboard with optional date filtering."""
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized. Please sign in first.'}), 401
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
@@ -1080,10 +1210,11 @@ def get_stats():
         conn = get_conn()
         cur  = conn.cursor()
         
+        p = get_placeholder()
         where_clause = ""
         params = []
         if start_date and end_date:
-            where_clause = " WHERE exam_date BETWEEN ? AND ?"
+            where_clause = f" WHERE exam_date BETWEEN {p} AND {p}"
             params = [start_date, end_date]
         
         # Totals
@@ -1114,6 +1245,10 @@ def get_stats():
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
     """Retrieve filtered activity logs for the Monitoring view."""
+    token = _get_token_from_header()
+    session = _get_session(token)
+    if not session:
+        return jsonify({'error': 'Unauthorized. Please sign in first.'}), 401
     try:
         action = request.args.get('action')
         search = request.args.get('search')
@@ -1121,15 +1256,16 @@ def get_logs():
         conn = get_conn()
         cur  = conn.cursor()
         
+        p = get_placeholder()
         query = 'SELECT * FROM activity_logs'
         conditions = []
         params = []
         
         if action:
-            conditions.append("action = ?")
+            conditions.append(f"action = {p}")
             params.append(action)
         if search:
-            conditions.append("(action LIKE ? OR details LIKE ?)")
+            conditions.append(f"(action LIKE {p} OR details LIKE {p})")
             params.extend([f"%{search}%", f"%{search}%"])
             
         if conditions:
@@ -1150,6 +1286,94 @@ def get_logs():
                 'ip': r[4]
             })
         return jsonify(logs)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/export-stats', methods=['GET'])
+def export_stats():
+    """
+    Export a comprehensive Excel file of all exams that have results submitted.
+    Joins examinations + exam_results into one formatted sheet.
+    Optional query params: start_date, end_date
+    """
+    token = _get_token_from_header()
+    if not _get_session(token):
+        return jsonify({'error': 'Unauthorized'}), 401
+    try:
+        start_date = request.args.get('start_date')
+        end_date   = request.args.get('end_date')
+
+        p = get_placeholder()
+        conn = get_conn()
+        cur  = conn.cursor()
+
+        base_query = f'''
+            SELECT
+                e.id,
+                e.exam_date,
+                e.exam_time,
+                e.program_batch,
+                e.semester,
+                e.course_name,
+                e.course_code,
+                e.evaluator_name,
+                e.room_number,
+                e.num_students,
+                r.answer_sheets,
+                r.ufm_count,
+                r.absent_count,
+                r.remarks,
+                r.submitted_by,
+                r.submitted_at
+            FROM examinations e
+            INNER JOIN exam_results r ON r.exam_id = e.id
+        '''
+
+        params = []
+        if start_date and end_date:
+            base_query += f' WHERE e.exam_date BETWEEN {p} AND {p}'
+            params = [start_date, end_date]
+        elif start_date:
+            base_query += f' WHERE e.exam_date = {p}'
+            params = [start_date]
+
+        base_query += ' ORDER BY e.exam_date ASC, e.room_number ASC'
+        cur.execute(base_query, params)
+        rows = cur.fetchall()
+        conn.close()
+
+        if not rows:
+            return jsonify({'error': 'No verified exam stats found for the selected criteria.'}), 404
+
+        columns = [
+            'ID', 'Exam Date', 'Exam Time', 'Program/Batch', 'Semester',
+            'Course Name', 'Course Code', 'Evaluator Name', 'Room No.',
+            'Registered Students', 'Answer Sheets', 'UFM Count', 'Absent Count',
+            'Remarks', 'Submitted By', 'Submitted At'
+        ]
+
+        df = pd.DataFrame(rows, columns=columns)
+
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Exam Stats')
+            ws = writer.sheets['Exam Stats']
+
+            # Auto-fit column widths
+            for col in ws.columns:
+                max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+                ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 50)
+
+        buf.seek(0)
+        filename = f'exam_stats_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+        log_activity("STATS_EXPORT", f"Rows: {len(rows)}, Date range: {start_date or 'all'} to {end_date or 'all'}")
+        return send_file(
+            buf,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

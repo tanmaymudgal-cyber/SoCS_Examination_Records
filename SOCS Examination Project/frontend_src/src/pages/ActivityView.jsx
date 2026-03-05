@@ -2,21 +2,25 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE } from '../hooks/useApi';
 
 export default function ActivityView({ toast }) {
-  const [logs, setLogs]     = useState([]);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API_BASE()}/logs`);
+      const r = await fetch(`${API_BASE()}/logs`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
       setLogs(await r.json());
     } catch {
-      toast.error('Load Failed', 'Could not fetch activity logs.');
+      toastRef.current.error('Load Failed', 'Could not fetch activity logs.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, []); // stable — no deps needed now
 
   useEffect(() => { load(); }, [load]);
 

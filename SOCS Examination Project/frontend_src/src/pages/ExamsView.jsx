@@ -102,17 +102,24 @@ export default function ExamsView({ toast }) {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState('one');
   const [examDates, setExamDates] = useState([]);
+  const examDatesRef = useRef([]);   // stable ref — avoids Flatpickr re-init loop
   const [generating, setGenerating] = useState(false);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteMode, setDeleteMode] = useState('one');
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fpSingle = useRef(null); const fpStart = useRef(null); const fpEnd = useRef(null);
-  const fpSingleInst = useRef(null); const fpStartInst = useRef(null); const fpEndInst = useRef(null);
+  const fpSingle = useRef(null); const fpRange = useRef(null);
+  const fpSingleInst = useRef(null); const fpRangeInst = useRef(null);
 
-  const fpDelSingle = useRef(null); const fpDelStart = useRef(null); const fpDelEnd = useRef(null);
-  const fpDelSingleInst = useRef(null); const fpDelStartInst = useRef(null); const fpDelEndInst = useRef(null);
+  const fpDelSingle = useRef(null); const fpDelRange = useRef(null);
+  const fpDelSingleInst = useRef(null); const fpDelRangeInst = useRef(null);
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportMode, setExportMode] = useState('all');
+  const [isExporting, setIsExporting] = useState(false);
+  const fpExSingle = useRef(null); const fpExRange = useRef(null);
+  const fpExSingleInst = useRef(null); const fpExRangeInst = useRef(null);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -132,44 +139,68 @@ export default function ExamsView({ toast }) {
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
   /* ── Flatpickr ── */
-  const dayCreate = useCallback((_, __, ___, dayElem) => {
+  // Keep examDatesRef in sync so the stable dayCreate callback can read the latest dates
+  useEffect(() => { examDatesRef.current = examDates; }, [examDates]);
+
+  // STABLE callback — does NOT go into the Flatpickr useEffect dep array
+  const dayCreate = useRef((_, __, ___, dayElem) => {
     const y = dayElem.dateObj.getFullYear();
     const m = String(dayElem.dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dayElem.dateObj.getDate()).padStart(2, '0');
     const isoDate = `${y}-${m}-${d}`;
-    if (examDates.includes(isoDate)) {
+    if (examDatesRef.current.includes(isoDate)) {
       dayElem.classList.add('exam-day');
       dayElem.title = '📅 Exam Scheduled';
     }
-  }, [examDates]);
+  }).current;
 
   useEffect(() => {
-    if (!bulkOpen && !deleteOpen) return;
-    const cfg = { dateFormat: 'Y-m-d', onDayCreate: dayCreate };
+    if (!bulkOpen && !deleteOpen && !exportOpen) return;
+    const cfg = { dateFormat: 'Y-m-d', onDayCreate: dayCreate, static: true };
+    const rangeCfg = { ...cfg, mode: 'range' };
+
     if (bulkOpen) {
-      if (!fpSingleInst.current && fpSingle.current) fpSingleInst.current = flatpickr(fpSingle.current, cfg);
-      if (!fpStartInst.current && fpStart.current) fpStartInst.current = flatpickr(fpStart.current, cfg);
-      if (!fpEndInst.current && fpEnd.current) fpEndInst.current = flatpickr(fpEnd.current, cfg);
+      if (fpSingle.current) fpSingleInst.current = flatpickr(fpSingle.current, cfg);
+      if (fpRange.current) fpRangeInst.current = flatpickr(fpRange.current, rangeCfg);
     }
     if (deleteOpen) {
-      if (!fpDelSingleInst.current && fpDelSingle.current) fpDelSingleInst.current = flatpickr(fpDelSingle.current, cfg);
-      if (!fpDelStartInst.current && fpDelStart.current) fpDelStartInst.current = flatpickr(fpDelStart.current, cfg);
-      if (!fpDelEndInst.current && fpDelEnd.current) fpDelEndInst.current = flatpickr(fpDelEnd.current, cfg);
+      if (fpDelSingle.current) fpDelSingleInst.current = flatpickr(fpDelSingle.current, cfg);
+      if (fpDelRange.current) fpDelRangeInst.current = flatpickr(fpDelRange.current, rangeCfg);
     }
-  }, [bulkOpen, deleteOpen, dayCreate]);
+    if (exportOpen) {
+      if (fpExSingle.current) fpExSingleInst.current = flatpickr(fpExSingle.current, cfg);
+      if (fpExRange.current) fpExRangeInst.current = flatpickr(fpExRange.current, rangeCfg);
+    }
+
+    return () => {
+      [fpSingleInst, fpRangeInst, fpDelSingleInst, fpDelRangeInst, fpExSingleInst, fpExRangeInst].forEach(ref => {
+        if (ref.current) { ref.current.destroy(); ref.current = null; }
+      });
+    };
+  }, [bulkOpen, deleteOpen, exportOpen, bulkMode, deleteMode, exportMode]);
+  // ↑ dayCreate is intentionally omitted from deps — it is now a stable ref
 
   useEffect(() => {
-    if (!bulkOpen && !deleteOpen) return;
+    if (!bulkOpen && !deleteOpen && !exportOpen) return;
     fetch(`${API_BASE()}/exam-dates`)
       .then(r => r.json())
-      .then(dates => setExamDates(dates.map(toISODate)))
+      .then(dates => {
+        const iso = dates.map(toISODate);
+        setExamDates(iso);
+        examDatesRef.current = iso;
+        [fpSingleInst, fpRangeInst, fpDelSingleInst, fpDelRangeInst, fpExSingleInst, fpExRangeInst].forEach(ref => {
+          if (ref.current) ref.current.redraw();
+        });
+      })
       .catch(() => { });
-  }, [bulkOpen, deleteOpen]);
+  }, [bulkOpen, deleteOpen, exportOpen]);
 
   /* ── Actions ── */
   const handleDownloadPDF = async (id) => {
     try {
-      const res = await fetch(`${API_BASE()}/generate-pdf/${id}`);
+      const res = await fetch(`${API_BASE()}/generate-pdf/${id}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
       const blob = await res.blob();
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
       a.download = `label_${id}.pdf`; a.click();
@@ -192,7 +223,10 @@ export default function ExamsView({ toast }) {
 
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this session?')) return;
-    await fetch(`${API_BASE()}/examination/${id}`, { method: 'DELETE' });
+    await fetch(`${API_BASE()}/examination/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+    });
     toast.success('Deleted', `Session #${id} removed.`);
     loadRecords();
   };
@@ -204,14 +238,15 @@ export default function ExamsView({ toast }) {
       if (!d) { toast.warning('Date Required', 'Please select a date.'); return; }
       url += `?start_date=${d.toISOString().split('T')[0]}`;
     } else {
-      const s = fpStartInst.current?.selectedDates[0];
-      const e = fpEndInst.current?.selectedDates[0];
-      if (!s || !e) { toast.warning('Dates Required', 'Please select start and end dates.'); return; }
-      url += `?start_date=${s.toISOString().split('T')[0]}&end_date=${e.toISOString().split('T')[0]}`;
+      const dates = fpRangeInst.current?.selectedDates || [];
+      if (dates.length < 2) { toast.warning('Range Required', 'Please select a start and end date.'); return; }
+      url += `?start_date=${dates[0].toISOString().split('T')[0]}&end_date=${dates[1].toISOString().split('T')[0]}`;
     }
     setGenerating(true);
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Generation failed.'); }
       const blob = await res.blob();
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -225,6 +260,36 @@ export default function ExamsView({ toast }) {
     }
   };
 
+  const handleExportStats = async () => {
+    let url = `${API_BASE()}/export-stats`;
+    if (exportMode === 'one') {
+      const d = fpExSingleInst.current?.selectedDates[0];
+      if (!d) { toast.warning('Date Required', 'Please select a date.'); return; }
+      url += `?start_date=${d.toISOString().split('T')[0]}`;
+    } else if (exportMode === 'range') {
+      const dates = fpExRangeInst.current?.selectedDates || [];
+      if (dates.length < 2) { toast.warning('Range Required', 'Please select a start and end date.'); return; }
+      url += `?start_date=${dates[0].toISOString().split('T')[0]}&end_date=${dates[1].toISOString().split('T')[0]}`;
+    }
+    // if exportMode === 'all', no params – downloads everything
+    setIsExporting(true);
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Export failed.'); }
+      const blob = await res.blob();
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `exam_stats_${today}.xlsx`; a.click();
+      setExportOpen(false);
+      toast.success('Export Ready', 'Exam stats downloaded as Excel.');
+    } catch (e) {
+      toast.error('Export Failed', e.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (!confirm('Are you sure you want to permanently delete these sessions? This action cannot be undone.')) return;
 
@@ -234,15 +299,17 @@ export default function ExamsView({ toast }) {
       if (!d) { toast.warning('Date Required', 'Please select a date.'); return; }
       url += `?start_date=${d.toISOString().split('T')[0]}`;
     } else {
-      const s = fpDelStartInst.current?.selectedDates[0];
-      const e = fpDelEndInst.current?.selectedDates[0];
-      if (!s || !e) { toast.warning('Dates Required', 'Please select start and end dates.'); return; }
-      url += `?start_date=${s.toISOString().split('T')[0]}&end_date=${e.toISOString().split('T')[0]}`;
+      const dates = fpDelRangeInst.current?.selectedDates || [];
+      if (dates.length < 2) { toast.warning('Range Required', 'Please select a start and end date.'); return; }
+      url += `?start_date=${dates[0].toISOString().split('T')[0]}&end_date=${dates[1].toISOString().split('T')[0]}`;
     }
 
     setIsDeleting(true);
     try {
-      const res = await fetch(url, { method: 'DELETE' });
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Deletion failed.');
 
@@ -292,6 +359,7 @@ export default function ExamsView({ toast }) {
         <div className="header-actions">
           <button className="btn btn-pdf" onClick={() => setBulkOpen(true)}>📄 Bulk Labels</button>
           <button className="btn btn-ghost" style={{ color: 'var(--danger)' }} onClick={() => setDeleteOpen(true)}>🗑 Bulk Delete</button>
+          <button className="btn btn-success" onClick={() => setExportOpen(true)}>📊 Export Stats</button>
           <button className="btn btn-outline" onClick={() => {
             fetch(`${API_BASE()}/download-template`).then(r => r.blob()).then(b => {
               const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'SOCS_Exam_Template.xlsx'; a.click();
@@ -402,15 +470,13 @@ export default function ExamsView({ toast }) {
         {bulkMode === 'one' && (
           <div className="input-row">
             <label>Select Date</label>
-            <input ref={fpSingle} className="modal-input" placeholder="Select a date from the calendar" readOnly />
+            <input ref={fpSingle} className="modal-input" placeholder="📅 Select a date..." readOnly />
           </div>
         )}
         {bulkMode === 'range' && (
           <div className="input-row">
-            <div className="dual-input">
-              <div><label>From</label><input ref={fpStart} className="modal-input" placeholder="Start Date" readOnly /></div>
-              <div><label>Till</label><input ref={fpEnd} className="modal-input" placeholder="End Date" readOnly /></div>
-            </div>
+            <label>Select Date Range</label>
+            <input ref={fpRange} className="modal-input" placeholder="📅 Select start and end date..." readOnly />
           </div>
         )}
 
@@ -432,15 +498,13 @@ export default function ExamsView({ toast }) {
         {deleteMode === 'one' && (
           <div className="input-row">
             <label>Select Date</label>
-            <input ref={fpDelSingle} className="modal-input" placeholder="Select a date from the calendar" readOnly />
+            <input ref={fpDelSingle} className="modal-input" placeholder="📅 Select a date..." readOnly />
           </div>
         )}
         {deleteMode === 'range' && (
           <div className="input-row">
-            <div className="dual-input">
-              <div><label>From</label><input ref={fpDelStart} className="modal-input" placeholder="Start Date" readOnly /></div>
-              <div><label>Till</label><input ref={fpDelEnd} className="modal-input" placeholder="End Date" readOnly /></div>
-            </div>
+            <label>Select Date Range</label>
+            <input ref={fpDelRange} className="modal-input" placeholder="📅 Select start and end date..." readOnly />
           </div>
         )}
 
@@ -485,6 +549,40 @@ export default function ExamsView({ toast }) {
             </p>
           </div>
         )}
+      </Modal>
+
+      {/* ── EXPORT STATS MODAL ── */}
+      <Modal show={exportOpen} onClose={() => setExportOpen(false)} title="📊 Export Verified Exam Stats">
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          Downloads an Excel file of all exams with submitted data. Only sessions where invigilators have synced results will be included.
+        </p>
+        <div className="toggle-group">
+          <button className={`toggle-btn${exportMode === 'all' ? ' active' : ''}`} onClick={() => setExportMode('all')}>All Time</button>
+          <button className={`toggle-btn${exportMode === 'one' ? ' active' : ''}`} onClick={() => setExportMode('one')}>One Day</button>
+          <button className={`toggle-btn${exportMode === 'range' ? ' active' : ''}`} onClick={() => setExportMode('range')}>Date Range</button>
+        </div>
+
+        {exportMode === 'one' && (
+          <div className="input-row">
+            <label>Select Date</label>
+            <input ref={fpExSingle} className="modal-input" placeholder="📅 Select a date..." readOnly />
+          </div>
+        )}
+        {exportMode === 'range' && (
+          <div className="input-row">
+            <label>Select Date Range</label>
+            <input ref={fpExRange} className="modal-input" placeholder="📅 Select start and end date..." readOnly />
+          </div>
+        )}
+        {exportMode === 'all' && (
+          <div style={{ background: 'var(--bg-app)', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            📋 All verified sessions from all time will be exported.
+          </div>
+        )}
+
+        <button className="btn btn-lg" style={{ width: '100%', background: 'var(--success)', color: 'white' }} onClick={handleExportStats} disabled={isExporting}>
+          {isExporting ? <><div className="spinner spinner-sm" /> Exporting…</> : '⬇ Download Excel File'}
+        </button>
       </Modal>
     </div>
   );

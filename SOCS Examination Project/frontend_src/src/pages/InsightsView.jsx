@@ -3,10 +3,10 @@ import { API_BASE } from '../hooks/useApi';
 import flatpickr from 'flatpickr';
 
 const STATS_CONFIG = [
-  { key: 'total_exams',    icon: '🏫', label: 'Total Exams',       color: 'blue'   },
-  { key: 'total_students', icon: '👥', label: 'Students Enrolled', color: 'green'  },
-  { key: 'total_sheets',   icon: '📄', label: 'Sheets Collected',  color: 'orange' },
-  { key: 'total_ufm',      icon: '⚠️', label: 'UFM Cases',         color: 'red'    },
+  { key: 'total_exams', icon: '🏫', label: 'Total Exams', color: 'blue' },
+  { key: 'total_students', icon: '👥', label: 'Students Enrolled', color: 'green' },
+  { key: 'total_sheets', icon: '📄', label: 'Sheets Collected', color: 'orange' },
+  { key: 'total_ufm', icon: '⚠️', label: 'UFM Cases', color: 'red' },
 ];
 
 function AnimatedNumber({ value }) {
@@ -27,7 +27,7 @@ function AnimatedNumber({ value }) {
 }
 
 export default function InsightsView({ toast }) {
-  const [stats, setStats]   = useState({});
+  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const fpRef = useRef(null);
@@ -37,8 +37,8 @@ export default function InsightsView({ toast }) {
     setLoading(true);
     let url = `${API_BASE()}/stats`;
     if (start && end) url += `?start_date=${start}&end_date=${end}`;
-    
-    fetch(url)
+
+    fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` } })
       .then(r => r.json())
       .then(d => { setStats(d); setLoading(false); })
       .catch(() => { toast.error('Load Failed', 'Could not fetch statistics.'); setLoading(false); });
@@ -46,7 +46,7 @@ export default function InsightsView({ toast }) {
 
   useEffect(() => {
     fetchStats();
-    
+
     if (fpRef.current) {
       fpInst.current = flatpickr(fpRef.current, {
         mode: 'range',
@@ -82,16 +82,16 @@ export default function InsightsView({ toast }) {
         </div>
         <div className="view-filters" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <div className="date-range-filter" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--card-bg)', padding: '4px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-             <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>🗓️ Period:</span>
-             <input 
-               ref={fpRef} 
-               className="date-picker-input" 
-               placeholder="Select date range..." 
-               style={{ background: 'transparent', border: 'none', color: 'var(--text)', outline: 'none', fontSize: '0.9rem', width: '180px' }}
-             />
-             {dateRange.start && (
-               <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 4px' }}>✕</button>
-             )}
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>🗓️ Period:</span>
+            <input
+              ref={fpRef}
+              className="date-picker-input"
+              placeholder="Select date range..."
+              style={{ background: 'transparent', border: 'none', color: 'var(--text)', outline: 'none', fontSize: '0.9rem', width: '180px' }}
+            />
+            {dateRange.start && (
+              <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 4px' }}>✕</button>
+            )}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={() => fetchStats(dateRange.start, dateRange.end)}>🔄</button>
         </div>

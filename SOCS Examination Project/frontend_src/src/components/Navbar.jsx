@@ -39,7 +39,9 @@ export default function Navbar({ activeView, onViewChange, isAuthenticated, user
           </div>
           <div>
             <h3>SoCS Exam Hub</h3>
-            <p>UPES Dehradun</p>
+            <p>
+              UPES Dehradun <span className="version-tag">v2.2-STABLE</span>
+            </p>
           </div>
         </div>
 

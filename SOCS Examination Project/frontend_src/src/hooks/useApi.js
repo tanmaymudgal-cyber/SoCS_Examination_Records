@@ -1,5 +1,4 @@
 // Shared API configuration
-// Shared API configuration
 export const API_BASE = () => {
   const { hostname, protocol, port } = window.location;
   // If we are on Render (no port or standard 80/443), use the same origin
