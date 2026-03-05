@@ -27,25 +27,6 @@ CORS(app)
 def home():
     return send_from_directory(app.static_folder, 'index.html')
 
-@app.route('/assets/<path:filename>')
-def serve_assets(filename):
-    return send_from_directory(os.path.join(app.static_folder, 'assets'), filename)
-
-@app.route('/<path:path>')
-def serve_static(path):
-    # Never intercept API or internal Flask routes
-    if path.startswith('api/'):
-        from flask import abort
-        abort(404)
-
-    # Serve known static files (e.g., results.html, logo.png, reset-password.html)
-    file_path = os.path.join(app.static_folder, path)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_from_directory(app.static_folder, path)
-
-    # SPA fallback — everything else goes to index.html
-    return send_from_directory(app.static_folder, 'index.html')
-
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
 def get_local_ip():
@@ -385,8 +366,23 @@ def _get_session(token):
     conn.close()
     if not row:
         return None
-    expires_at = datetime.fromisoformat(row[4])
-    if datetime.utcnow() > expires_at:
+    val = row[4]
+    try:
+        # Postgres returns datetime objects, SQLite returning strings. Handle both.
+        if isinstance(val, (datetime, date)):
+            exp = val
+        else:
+            exp = datetime.fromisoformat(str(val))
+        
+        # Ensure exp is naive if utcnow is used, or make utcnow aware.
+        # Simplest: if exp has tzinfo, make it naive for comparison
+        if exp.tzinfo is not None:
+            exp = exp.replace(tzinfo=None)
+            
+    except (ValueError, TypeError):
+        return None
+
+    if datetime.utcnow() > exp:
         return None
     return {'token': row[0], 'user_id': row[1], 'role': row[2], 'username': row[3]}
 
@@ -814,6 +810,7 @@ def submit_results():
         absent_count  = int(data.get('absent_count',  0))
         remarks       = data.get('remarks',       '')
         submitted_by  = data.get('submitted_by',  '')
+        force         = data.get('force', False)  # allow overwrite of existing
 
         if exam_id is None:
             return jsonify({'error': 'exam_id is required'}), 400
@@ -827,9 +824,26 @@ def submit_results():
             return jsonify({'error': 'Examination not found'}), 404
 
         p = get_placeholder()
+        # Check for an existing submission first
+        cur.execute(f'SELECT submitted_by, submitted_at, answer_sheets FROM exam_results WHERE exam_id = {p}', (exam_id,))
+        existing_row = cur.fetchone()
+
+        if existing_row and not force:
+            conn.close()
+            prev_by, prev_at, prev_sheets = existing_row
+            return jsonify({
+                'conflict': True,
+                'message': f'This session already has data submitted by "{prev_by}" ({prev_sheets} sheets). Use force=true to overwrite.',
+                'previous': {
+                    'submitted_by': prev_by,
+                    'submitted_at': str(prev_at),
+                    'answer_sheets': prev_sheets
+                }
+            }), 409
+
         # Note: Postgres doesn't have INSERT OR REPLACE, we use ON CONFLICT
         is_postgres = (p == '%s')
-        
+
         if is_postgres:
             cur.execute(f'''
                 INSERT INTO exam_results
@@ -1306,40 +1320,32 @@ def export_stats():
         conn = get_conn()
         cur  = conn.cursor()
 
-        base_query = f'''
+        cur.execute('''
             SELECT
-                e.id,
-                e.exam_date,
-                e.exam_time,
-                e.program_batch,
-                e.semester,
-                e.course_name,
-                e.course_code,
-                e.evaluator_name,
-                e.room_number,
-                e.num_students,
-                r.answer_sheets,
-                r.ufm_count,
-                r.absent_count,
-                r.remarks,
-                r.submitted_by,
-                r.submitted_at
+                e.id, e.exam_date, e.exam_time, e.program_batch, e.semester,
+                e.course_name, e.course_code, e.evaluator_name, e.room_number,
+                e.num_students, r.answer_sheets, r.ufm_count, r.absent_count,
+                 r.remarks, r.submitted_by, r.submitted_at
             FROM examinations e
             INNER JOIN exam_results r ON r.exam_id = e.id
-        '''
-
-        params = []
-        if start_date and end_date:
-            base_query += f' WHERE e.exam_date BETWEEN {p} AND {p}'
-            params = [start_date, end_date]
-        elif start_date:
-            base_query += f' WHERE e.exam_date = {p}'
-            params = [start_date]
-
-        base_query += ' ORDER BY e.exam_date ASC, e.room_number ASC'
-        cur.execute(base_query, params)
-        rows = cur.fetchall()
+            ORDER BY e.exam_date ASC, e.room_number ASC
+        ''')
+        all_rows = cur.fetchall()
         conn.close()
+
+        if start_date:
+            filtered = []
+            for row in all_rows:
+                exam_d = standardize_date(row[1]) # e.exam_date is index 1
+                if end_date:
+                    if start_date <= exam_d <= end_date:
+                        filtered.append(row)
+                else:
+                    if exam_d == start_date:
+                        filtered.append(row)
+            rows = filtered
+        else:
+            rows = all_rows
 
         if not rows:
             return jsonify({'error': 'No verified exam stats found for the selected criteria.'}), 404
@@ -1374,6 +1380,22 @@ def export_stats():
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/<path:path>')
+def serve_static(path):
+    # Never intercept API or internal Flask routes
+    if path.startswith('api/'):
+        from flask import abort
+        abort(404)
+
+    # Serve known static files (e.g., results.html, logo.png, reset-password.html)
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(app.static_folder, path)
+
+    # SPA fallback — everything else goes to index.html
+    return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     try:
