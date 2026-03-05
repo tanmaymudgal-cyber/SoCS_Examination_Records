@@ -27,9 +27,24 @@ CORS(app)
 def home():
     return send_from_directory(app.static_folder, 'index.html')
 
+@app.route('/assets/<path:filename>')
+def serve_assets(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'assets'), filename)
+
 @app.route('/<path:path>')
 def serve_static(path):
-    return send_from_directory(app.static_folder, path)
+    # Never intercept API or internal Flask routes
+    if path.startswith('api/'):
+        from flask import abort
+        abort(404)
+
+    # Serve known static files (e.g., results.html, logo.png, reset-password.html)
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(app.static_folder, path)
+
+    # SPA fallback — everything else goes to index.html
+    return send_from_directory(app.static_folder, 'index.html')
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
