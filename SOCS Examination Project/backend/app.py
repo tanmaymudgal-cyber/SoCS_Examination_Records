@@ -1078,25 +1078,28 @@ def generate_bulk_pdf():
 
         conn = get_conn()
         cur  = conn.cursor()
-        
-        p = get_placeholder()
-        query = 'SELECT * FROM examinations'
-        params = []
-        
-        if start_date and end_date:
-            query += f' WHERE exam_date BETWEEN {p} AND {p}'
-            params = [start_date, end_date]
-        elif start_date:
-            query += f' WHERE exam_date = {p}'
-            params = [start_date]
-            
-        query += ' ORDER BY exam_date ASC, room_number ASC'
-        cur.execute(query, params)
-        rows = cur.fetchall()
+
+        # Fetch all and filter in Python to handle date format mismatches robustly
+        cur.execute('SELECT * FROM examinations ORDER BY exam_date ASC, room_number ASC')
+        all_rows = cur.fetchall()
         conn.close()
 
+        if start_date:
+            filtered = []
+            for row in all_rows:
+                exam_d = standardize_date(row[3])  # exam_date is column index 3
+                if end_date:
+                    if start_date <= exam_d <= end_date:
+                        filtered.append(row)
+                else:
+                    if exam_d == start_date:
+                        filtered.append(row)
+            rows = filtered
+        else:
+            rows = all_rows
+
         if not rows:
-            return jsonify({'error': 'No examinations found for the selected criteria'}), 404
+            return jsonify({'error': f'No examinations found for { start_date or "the selected criteria" }'}), 404
 
         exams = [row_to_exam(r) for r in rows]
 
@@ -1142,6 +1145,7 @@ def generate_bulk_pdf():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/examinations/bulk-delete', methods=['DELETE'])
 def bulk_delete_examinations():
