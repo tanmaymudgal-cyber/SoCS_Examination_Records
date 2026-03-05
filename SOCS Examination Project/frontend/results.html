@@ -317,6 +317,13 @@
             color: #94a3b8;
         }
 
+        .submit-btn.synced {
+            background: var(--primary) !important;
+            color: white !important;
+            opacity: 1 !important;
+            box-shadow: none !important;
+        }
+
         .status-toast {
             position: fixed;
             bottom: 24px;
@@ -713,13 +720,6 @@
                 return;
             }
 
-            // Check if already submitted
-            const history = JSON.parse(localStorage.getItem('submission_history') || '{}');
-            if (history[examId]) {
-                document.getElementById('lastSyncMsg').style.display = 'block';
-                document.getElementById('lastSyncMsg').textContent = `✓ Previously synced on ${new Date(history[examId]).toLocaleTimeString()}`;
-            }
-
             try {
                 const res = await fetch(`${API_BASE}/examination/${examId}`);
                 if (!res.ok) throw new Error('Session not found');
@@ -730,6 +730,17 @@
                 document.getElementById('disp-course').textContent = data.course_name;
                 document.getElementById('disp-expected').textContent = data.num_students;
                 expectedTotal = parseInt(data.num_students);
+
+                // API driven sync detection
+                if (data.sync_at) {
+                    const lastSync = document.getElementById('lastSyncMsg');
+                    lastSync.style.display = 'block';
+                    lastSync.textContent = `✓ Previously synced on ${new Date(data.sync_at).toLocaleString()}`;
+
+                    const btn = document.getElementById('syncBtn');
+                    btn.classList.add('synced');
+                    btn.innerHTML = '✅ Data Already Synchronized';
+                }
 
                 document.getElementById('shimmer').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
@@ -813,16 +824,21 @@
                     throw new Error(errData.error || 'Sync failed');
                 }
 
+                const resData = await res.json();
+
                 // Persist locally
                 const history = JSON.parse(localStorage.getItem('submission_history') || '{}');
                 history[examId] = new Date().toISOString();
                 localStorage.setItem('submission_history', JSON.stringify(history));
 
                 showToast('✅', 'Sync Success!', 'Figures are live on the Admin Dashboard.');
-                btn.style.background = 'var(--primary)';
-                btn.innerHTML = '✅ Data Synchronized';
-                document.getElementById('lastSyncMsg').style.display = 'block';
-                document.getElementById('lastSyncMsg').textContent = '✓ Synced just now';
+                btn.classList.add('synced');
+                btn.innerHTML = '✅ Data Already Synchronized';
+                btn.disabled = true;
+
+                const lastSync = document.getElementById('lastSyncMsg');
+                lastSync.style.display = 'block';
+                lastSync.textContent = `✓ Previously synced on ${new Date().toLocaleString()}`;
             } catch (err) {
                 showToast('❌', 'Sync Failed', err.message);
                 btn.disabled = false;
