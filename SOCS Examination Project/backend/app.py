@@ -9,7 +9,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
 import json, io, os, socket, uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, timezone
 import bcrypt
 from dotenv import load_dotenv
 
@@ -113,7 +113,7 @@ def get_placeholder():
         return "%s"
     return "?"
 
-SESSION_TIMEOUT_MINUTES = 30
+SESSION_TIMEOUT_MINUTES = 480 # 8 hours
 RESET_TOKEN_EXPIRY_MINUTES = 15
 
 DEFAULT_USERS = [
@@ -383,9 +383,9 @@ def _get_session(token):
                 exp = datetime.fromisoformat(str(val))
             
             # Ensure exp is naive if utcnow is used, or make utcnow aware.
-            # Simplest: if exp has tzinfo, make it naive for comparison
+            # Convert to UTC first, then drop tzinfo for comparison with utcnow()
             if exp.tzinfo is not None:
-                exp = exp.replace(tzinfo=None)
+                exp = exp.astimezone(timezone.utc).replace(tzinfo=None)
                 
         except (ValueError, TypeError) as te:
             print(f"SESSION DEBUG: Date parsing failed: {te}")
@@ -424,10 +424,6 @@ def auth_login():
             return jsonify({'error': 'Invalid username or password'}), 401
 
         user_id, _, role = row
-
-        p = get_placeholder()
-        # Invalidate any existing session for this user
-        cur.execute(f'DELETE FROM sessions WHERE user_id = {p}', (user_id,))
 
         token = str(uuid.uuid4())
         now   = datetime.utcnow()
