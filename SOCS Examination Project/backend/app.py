@@ -100,7 +100,10 @@ def get_conn():
     print("DATABASE TYPE: SQLite (Fallback)")
     print(f"DB Path: {DB_PATH}")
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        pass
     return conn
 
 def get_placeholder():
@@ -311,7 +314,8 @@ def log_activity(action, details=None):
     try:
         p = get_placeholder()
         conn = get_conn()
-        conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             f"INSERT INTO activity_logs (action, details, ip_address) VALUES ({p}, {p}, {p})",
             (action, details, ip_addr)
         )
@@ -355,36 +359,47 @@ def _get_session(token):
     """Return session row if token is valid and not expired, else None."""
     if not token:
         return None
-    p = get_placeholder()
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        f"SELECT token, user_id, role, username, expires_at FROM sessions WHERE token = {p}",
-        (token,)
-    )
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        return None
-    val = row[4]
     try:
-        # Postgres returns datetime objects, SQLite returning strings. Handle both.
-        if isinstance(val, (datetime, date)):
-            exp = val
-        else:
-            exp = datetime.fromisoformat(str(val))
+        p = get_placeholder()
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT token, user_id, role, username, expires_at FROM sessions WHERE token = {p}",
+            (token,)
+        )
+        row = cur.fetchone()
+        conn.close()
         
-        # Ensure exp is naive if utcnow is used, or make utcnow aware.
-        # Simplest: if exp has tzinfo, make it naive for comparison
-        if exp.tzinfo is not None:
-            exp = exp.replace(tzinfo=None)
+        if not row:
+            print(f"SESSION DEBUG: No session found for token {token[:8]}...")
+            return None
             
-    except (ValueError, TypeError):
-        return None
+        val = row[4]
+        try:
+            # Postgres returns datetime objects, SQLite returning strings. Handle both.
+            if isinstance(val, (datetime, date)):
+                exp = val
+            else:
+                exp = datetime.fromisoformat(str(val))
+            
+            # Ensure exp is naive if utcnow is used, or make utcnow aware.
+            # Simplest: if exp has tzinfo, make it naive for comparison
+            if exp.tzinfo is not None:
+                exp = exp.replace(tzinfo=None)
+                
+        except (ValueError, TypeError) as te:
+            print(f"SESSION DEBUG: Date parsing failed: {te}")
+            return None
 
-    if datetime.utcnow() > exp:
+        if datetime.utcnow() > exp:
+            print(f"SESSION DEBUG: Session expired at {exp} (Current UTC: {datetime.utcnow()})")
+            return None
+            
+        return {'token': row[0], 'user_id': row[1], 'role': row[2], 'username': row[3]}
+        
+    except Exception as e:
+        print(f"SESSION DEBUG: Unexpected error: {e}")
         return None
-    return {'token': row[0], 'user_id': row[1], 'role': row[2], 'username': row[3]}
 
 @app.route('/api/auth/login', methods=['POST'])
 def auth_login():
@@ -421,7 +436,7 @@ def auth_login():
         p = get_placeholder()
         cur.execute(
             f'INSERT INTO sessions (token, user_id, role, username, created_at, expires_at) VALUES ({p}, {p}, {p}, {p}, {p}, {p})',
-            (token, user_id, role, username, now.isoformat(), exp.isoformat())
+            (token, user_id, role, username, now, exp)
         )
         conn.commit()
         conn.close()
@@ -445,7 +460,8 @@ def auth_logout():
     if token:
         p = get_placeholder()
         conn = get_conn()
-        conn.execute(f'DELETE FROM sessions WHERE token = {p}', (token,))
+        cur = conn.cursor()
+        cur.execute(f'DELETE FROM sessions WHERE token = {p}', (token,))
         conn.commit()
         conn.close()
         log_activity('LOGOUT', f'Token: {token[:8]}…')
@@ -461,10 +477,11 @@ def auth_verify():
         return jsonify({'error': 'Unauthorized or session expired'}), 401
 
     # Slide the expiry window
-    new_exp = (datetime.utcnow() + timedelta(minutes=SESSION_TIMEOUT_MINUTES)).isoformat()
+    new_exp = datetime.utcnow() + timedelta(minutes=SESSION_TIMEOUT_MINUTES)
     p = get_placeholder()
     conn = get_conn()
-    conn.execute(f'UPDATE sessions SET expires_at = {p} WHERE token = {p}', (new_exp, token))
+    cur = conn.cursor()
+    cur.execute(f'UPDATE sessions SET expires_at = {p} WHERE token = {p}', (new_exp, token))
     conn.commit()
     conn.close()
 
@@ -472,7 +489,7 @@ def auth_verify():
         'valid':    True,
         'role':     session['role'],
         'username': session['username'],
-        'expires_at': new_exp
+        'expires_at': new_exp.isoformat()
     }), 200
 
 
@@ -769,7 +786,8 @@ def delete_examination(exam_id):
     try:
         p = get_placeholder()
         conn = get_conn()
-        conn.execute(f'DELETE FROM examinations WHERE id = {p}', (exam_id,))
+        cur = conn.cursor()
+        cur.execute(f'DELETE FROM examinations WHERE id = {p}', (exam_id,))
         conn.commit()
         conn.close()
         log_activity("RECORD_DELETE", f"Exam ID: {exam_id}")
