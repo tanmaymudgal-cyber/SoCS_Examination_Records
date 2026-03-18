@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 from flask_cors import CORS
 import pandas as pd
 import sqlite3
@@ -10,6 +10,7 @@ from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
 import json, io, os, socket, uuid
 from datetime import datetime, timedelta, date, timezone
+from typing import Any, List, Dict, Optional, Union, cast
 import bcrypt
 from dotenv import load_dotenv
 
@@ -60,7 +61,7 @@ def get_url_for(path):
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "exams.db")
 
-def get_conn():
+def get_conn() -> Any:
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
         db_url = db_url.strip()
@@ -384,8 +385,11 @@ def _get_session(token):
             
             # Ensure exp is naive if utcnow is used, or make utcnow aware.
             # Convert to UTC first, then drop tzinfo for comparison with utcnow()
-            if exp.tzinfo is not None:
+            if isinstance(exp, datetime) and exp.tzinfo is not None:
                 exp = exp.astimezone(timezone.utc).replace(tzinfo=None)
+            elif isinstance(exp, date) and not isinstance(exp, datetime):
+                # If it's just a date, convert to datetime at midnight for comparison
+                exp = datetime.combine(exp, datetime.min.time())
                 
         except (ValueError, TypeError) as te:
             print(f"SESSION DEBUG: Date parsing failed: {te}")
@@ -1196,7 +1200,7 @@ def bulk_delete_examinations():
         cur.execute('SELECT id, exam_date FROM examinations')
         rows = cur.fetchall()
         
-        to_delete = []
+        to_delete: List[int] = []
         for eid, edate_raw in rows:
             edate = standardize_date(edate_raw)
             if end_date:
@@ -1211,15 +1215,24 @@ def bulk_delete_examinations():
             return jsonify({'message': 'No matching sessions found for deletion.'}), 200
 
         p = get_placeholder()
-        fmt_ids = ",".join([p] * len(to_delete))
-        cur.execute(f"DELETE FROM examinations WHERE id IN ({fmt_ids})", to_delete)
-        deleted = cur.rowcount
+        
+        # Batching for safety (SQLite has a limit on parameters)
+        batch_size = 500
+        deleted = 0
+        for i in range(0, len(to_delete), batch_size):
+            # Use index-based access to avoid linter confusion with slicing
+            batch = [to_delete[j] for j in range(i, min(i + batch_size, len(to_delete)))]
+            fmt_ids = ",".join([p] * len(batch))
+            cur.execute(f"DELETE FROM examinations WHERE id IN ({fmt_ids})", batch)
+            deleted += cur.rowcount
+            
         conn.commit()
         conn.close()
 
         log_activity("BULK_DELETE", f"Deleted {deleted} exams from {start_date} to {end_date or start_date}")
         return jsonify({'message': f'Successfully deleted {deleted} sessions.'}), 200
     except Exception as e:
+        print(f"BULK DELETE ERROR: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/stats', methods=['GET'])
@@ -1284,7 +1297,7 @@ def get_logs():
         
         p = get_placeholder()
         query = 'SELECT * FROM activity_logs'
-        conditions = []
+        conditions: List[str] = []
         params = []
         
         if action:
@@ -1400,7 +1413,6 @@ def export_stats():
 def serve_static(path):
     # Never intercept API or internal Flask routes
     if path.startswith('api/'):
-        from flask import abort
         abort(404)
 
     # Serve known static files (e.g., results.html, logo.png, reset-password.html)

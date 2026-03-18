@@ -236,11 +236,14 @@ export default function ExamsView({ toast }) {
     if (bulkMode === 'one') {
       const d = fpSingleInst.current?.selectedDates[0];
       if (!d) { toast.warning('Date Required', 'Please select a date.'); return; }
-      url += `?start_date=${d.toISOString().split('T')[0]}`;
+      const localDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      url += `?start_date=${localDate}`;
     } else {
       const dates = fpRangeInst.current?.selectedDates || [];
       if (dates.length < 2) { toast.warning('Range Required', 'Please select a start and end date.'); return; }
-      url += `?start_date=${dates[0].toISOString().split('T')[0]}&end_date=${dates[1].toISOString().split('T')[0]}`;
+      const ds = new Date(dates[0].getTime() - (dates[0].getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      const de = new Date(dates[1].getTime() - (dates[1].getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      url += `?start_date=${ds}&end_date=${de}`;
     }
     setGenerating(true);
     try {
@@ -265,11 +268,14 @@ export default function ExamsView({ toast }) {
     if (exportMode === 'one') {
       const d = fpExSingleInst.current?.selectedDates[0];
       if (!d) { toast.warning('Date Required', 'Please select a date.'); return; }
-      url += `?start_date=${d.toISOString().split('T')[0]}`;
+      const localDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      url += `?start_date=${localDate}`;
     } else if (exportMode === 'range') {
       const dates = fpExRangeInst.current?.selectedDates || [];
       if (dates.length < 2) { toast.warning('Range Required', 'Please select a start and end date.'); return; }
-      url += `?start_date=${dates[0].toISOString().split('T')[0]}&end_date=${dates[1].toISOString().split('T')[0]}`;
+      const ds = new Date(dates[0].getTime() - (dates[0].getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      const de = new Date(dates[1].getTime() - (dates[1].getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      url += `?start_date=${ds}&end_date=${de}`;
     }
     // if exportMode === 'all', no params – downloads everything
     setIsExporting(true);
@@ -297,11 +303,14 @@ export default function ExamsView({ toast }) {
     if (deleteMode === 'one') {
       const d = fpDelSingleInst.current?.selectedDates[0];
       if (!d) { toast.warning('Date Required', 'Please select a date.'); return; }
-      url += `?start_date=${d.toISOString().split('T')[0]}`;
+      const localDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      url += `?start_date=${localDate}`;
     } else {
       const dates = fpDelRangeInst.current?.selectedDates || [];
       if (dates.length < 2) { toast.warning('Range Required', 'Please select a start and end date.'); return; }
-      url += `?start_date=${dates[0].toISOString().split('T')[0]}&end_date=${dates[1].toISOString().split('T')[0]}`;
+      const ds = new Date(dates[0].getTime() - (dates[0].getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      const de = new Date(dates[1].getTime() - (dates[1].getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      url += `?start_date=${ds}&end_date=${de}`;
     }
 
     setIsDeleting(true);
